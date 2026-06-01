@@ -1,0 +1,65 @@
+# OpenBao - the secrets store this platform reads from. We run it in-cluster in
+# standalone mode with persistent storage, so your secrets survive restarts.
+#
+# Heads up: OpenBao starts SEALED. The first time it comes up you do a one-time
+# `bao operator init` + `unseal`, then load your secrets - see the README's
+# Secrets section. The bootstrap waits here (wave 2) until you unseal it, so the
+# core platform (ingress, certs, databases) is already up by then, and only the
+# apps that need secrets (cluster-secrets, authentik, argo-workflows) come after.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openbao
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.openbao.repoURL | quote }}
+    chart: {{ .Values.charts.openbao.chart | quote }}
+    targetRevision: {{ .Values.charts.openbao.version | quote }}
+    helm:
+      valuesObject:
+        # External Secrets delivers secrets to pods, so the agent injector is off.
+        injector:
+          enabled: false
+        server:
+{{- if and .Values.openbao.serviceAccountAnnotationKey .Values.openbao.serviceAccountAnnotationValue }}
+          # Lets OpenBao reach your cloud KMS via workload identity (for auto-unseal).
+          serviceAccount:
+            annotations:
+              {{ .Values.openbao.serviceAccountAnnotationKey }}: {{ .Values.openbao.serviceAccountAnnotationValue | quote }}
+{{- end }}
+          # Single node, file storage on a PVC - secrets persist across restarts.
+          standalone:
+            enabled: true
+            config: |
+              ui = true
+
+              listener "tcp" {
+                tls_disable = 1
+                address = "[::]:8200"
+                cluster_address = "[::]:8201"
+              }
+
+              storage "file" {
+                path = "/openbao/data"
+              }
+{{- if .Values.openbao.sealConfig }}
+{{ .Values.openbao.sealConfig | b64dec | indent 14 }}
+{{- end }}
+          dataStorage:
+            enabled: true
+            size: 2Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openbao
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

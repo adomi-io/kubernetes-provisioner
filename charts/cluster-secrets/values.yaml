@@ -1,0 +1,9 @@
+# Filled in by the cluster-secrets app (from argocd/values.yaml). These defaults
+# are just placeholders so the chart renders on its own.
+openbao:
+  address: http://openbao.openbao.svc.cluster.local:8200
+  kvMount: secret
+  kubernetesAuthMountPath: kubernetes
+  kubernetesAuthRole: external-secrets
+  authentikSecretPath: authentik
+  argoWorkflowsSecretPath: argo-workflows

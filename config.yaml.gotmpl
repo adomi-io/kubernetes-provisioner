@@ -1,0 +1,35 @@
+# Configuration. Every value here can be set with an environment variable, so you
+# can drive a whole install from a .env file, your shell, or GitHub environment
+# variables - without editing this file. The defaults below are placeholders.
+#
+# Quickest path:
+#   cp .env.example .env   # fill it in
+#   ./install.sh apply     # the installer loads .env for you
+#
+# Your apps are served at <app>.<domain> (auth.example.com, argo.example.com, and
+# so on), and Let's Encrypt registers your certificates under acmeEmail.
+
+domain:        {{ env "DOMAIN"         | default "example.com"      | quote }}
+acmeEmail:     {{ env "ACME_EMAIL"     | default "you@example.com"  | quote }}
+ingressClass:  {{ env "INGRESS_CLASS"  | default "traefik"          | quote }}
+clusterIssuer: {{ env "CLUSTER_ISSUER" | default "letsencrypt-prod" | quote }}
+
+# Where Argo CD reads the platform from. Point these at your own fork/branch if you
+# change anything under argocd/. Must be reachable from the cluster.
+gitRepoURL:        {{ env "GIT_REPO_URL"        | default "https://github.com/adomi-io/kubernetes-provisioner.git" | quote }}
+gitTargetRevision: {{ env "GIT_TARGET_REVISION" | default "main" | quote }}
+
+# Where your secrets live in OpenBao (see the README's Secrets section).
+openbao:
+  address:                 {{ env "BAO_ADDR"                       | default "http://openbao.openbao.svc.cluster.local:8200" | quote }}
+  kvMount:                 {{ env "BAO_KV_MOUNT"                    | default "secret"           | quote }}
+  kubernetesAuthMountPath: {{ env "BAO_KUBERNETES_AUTH_MOUNT"      | default "kubernetes"       | quote }}
+  kubernetesAuthRole:      {{ env "BAO_KUBERNETES_AUTH_ROLE"       | default "external-secrets" | quote }}
+  authentikSecretPath:     {{ env "BAO_AUTHENTIK_SECRET_PATH"      | default "authentik"        | quote }}
+  argoWorkflowsSecretPath: {{ env "BAO_ARGO_WORKFLOWS_SECRET_PATH" | default "argo-workflows"   | quote }}
+  # Auto-unseal: set BAO_SEAL_CONFIG to a raw HCL `seal` stanza for your cloud KMS
+  # (see the README). Base64-encoded here so it survives the trip. Empty = manual
+  # unseal. The service-account annotation lets OpenBao reach the KMS.
+  sealConfig:                    {{ env "BAO_SEAL_CONFIG"           | default "" | b64enc | quote }}
+  serviceAccountAnnotationKey:   {{ env "BAO_SA_ANNOTATION_KEY"     | default "" | quote }}
+  serviceAccountAnnotationValue: {{ env "BAO_SA_ANNOTATION_VALUE"   | default "" | quote }}

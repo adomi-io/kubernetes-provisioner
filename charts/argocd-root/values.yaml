@@ -1,0 +1,18 @@
+# Filled in by helmfile from config.yaml.gotmpl. These defaults are placeholders so the
+# chart renders on its own (e.g. `helm template`).
+gitRepoURL: https://github.com/adomi-io/kubernetes-provisioner.git
+gitTargetRevision: main
+domain: example.com
+acmeEmail: admin@example.com
+ingressClass: traefik
+clusterIssuer: letsencrypt-prod
+openbao:
+  address: http://openbao.openbao.svc.cluster.local:8200
+  kvMount: secret
+  kubernetesAuthMountPath: kubernetes
+  kubernetesAuthRole: external-secrets
+  authentikSecretPath: authentik
+  argoWorkflowsSecretPath: argo-workflows
+  sealConfig: ""
+  serviceAccountAnnotationKey: ""
+  serviceAccountAnnotationValue: ""

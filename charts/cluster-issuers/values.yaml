@@ -1,0 +1,4 @@
+# Filled in by the cluster-issuers app. The real values start in config.yaml.gotmpl and
+# flow through the argocd/ chart; these are just placeholders.
+acmeEmail: admin@example.com
+ingressClass: traefik

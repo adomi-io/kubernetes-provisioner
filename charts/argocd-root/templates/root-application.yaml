@@ -1,0 +1,44 @@
+# The one Application that kicks off GitOps. It points Argo CD at the argocd/
+# chart in this repo, which declares one app per platform component (the
+# "app of apps" pattern). Your settings from config.yaml.gotmpl are passed straight in.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform
+  namespace: argocd
+  # Deleting this app deletes everything it created.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.gitRepoURL | quote }}
+    targetRevision: {{ .Values.gitTargetRevision | quote }}
+    path: argocd
+    helm:
+      valuesObject:
+        domain: {{ .Values.domain | quote }}
+        acmeEmail: {{ .Values.acmeEmail | quote }}
+        ingressClass: {{ .Values.ingressClass | quote }}
+        clusterIssuer: {{ .Values.clusterIssuer | quote }}
+        gitRepoURL: {{ .Values.gitRepoURL | quote }}
+        gitTargetRevision: {{ .Values.gitTargetRevision | quote }}
+        openbao:
+          address: {{ .Values.openbao.address | quote }}
+          kvMount: {{ .Values.openbao.kvMount | quote }}
+          kubernetesAuthMountPath: {{ .Values.openbao.kubernetesAuthMountPath | quote }}
+          kubernetesAuthRole: {{ .Values.openbao.kubernetesAuthRole | quote }}
+          authentikSecretPath: {{ .Values.openbao.authentikSecretPath | quote }}
+          argoWorkflowsSecretPath: {{ .Values.openbao.argoWorkflowsSecretPath | quote }}
+          sealConfig: {{ .Values.openbao.sealConfig | quote }}
+          serviceAccountAnnotationKey: {{ .Values.openbao.serviceAccountAnnotationKey | quote }}
+          serviceAccountAnnotationValue: {{ .Values.openbao.serviceAccountAnnotationValue | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

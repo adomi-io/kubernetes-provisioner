@@ -1,0 +1,73 @@
+# Authentik is single sign-on - one login across your apps - at auth.<domain>. It
+# comes up last (wave 2), once ingress, the certificate issuer, and its secrets
+# are ready. It brings its own Postgres and Redis, so there is nothing else to set
+# up.
+#
+# Nothing secret lives here. The secret_key and database password come from the
+# authentik-secrets Secret that External Secrets pulls from OpenBao (see the
+# cluster-secrets app): the key is passed in as an env var, and Postgres reads its
+# password straight from that Secret.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: authentik
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.authentik.repoURL | quote }}
+    chart: {{ .Values.charts.authentik.chart | quote }}
+    targetRevision: {{ .Values.charts.authentik.version | quote }}
+    helm:
+      valuesObject:
+        # secret_key and the Postgres password come from authentik-secrets.
+        # Setting them here as env vars wins over the chart's own generated config.
+        global:
+          env:
+            - name: AUTHENTIK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-secrets
+                  key: secret_key
+            - name: AUTHENTIK_POSTGRESQL__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-secrets
+                  key: postgres-password
+        postgresql:
+          enabled: true
+          auth:
+            # Postgres reads the same password from that OpenBao-backed Secret.
+            existingSecret: authentik-secrets
+            secretKeys:
+              userPasswordKey: postgres-password
+            # We only need the authentik user, so skip the postgres superuser and
+            # we have one less password to manage.
+            enablePostgresUser: false
+        redis:
+          enabled: true
+        server:
+          ingress:
+            enabled: true
+            ingressClassName: {{ .Values.ingressClass }}
+            annotations:
+              cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            hosts:
+              - auth.{{ .Values.domain }}
+            tls:
+              - hosts:
+                  - auth.{{ .Values.domain }}
+                secretName: authentik-tls
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: authentik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

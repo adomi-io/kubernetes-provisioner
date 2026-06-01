@@ -1,0 +1,75 @@
+# Settings for the platform. The top block is passed in by the root app (from
+# config.yaml.gotmpl); the defaults here are placeholders so the chart renders on its
+# own with `helm template ./argocd`.
+domain: example.com
+acmeEmail: admin@example.com
+ingressClass: traefik
+clusterIssuer: letsencrypt-prod
+gitRepoURL: https://github.com/adomi-io/kubernetes-provisioner.git
+gitTargetRevision: main
+
+# Where each off-the-shelf component comes from, pinned to a version. The pieces
+# that live in this repo (cluster-issuers, cluster-secrets, rabbitmq) use
+# gitRepoURL instead.
+charts:
+  certManager:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    version: v1.20.2
+  traefik:
+    repoURL: https://traefik.github.io/charts
+    chart: traefik
+    version: 40.2.0
+  cloudnativePg:
+    repoURL: https://cloudnative-pg.github.io/charts
+    chart: cloudnative-pg
+    version: 0.28.2
+  authentik:
+    repoURL: https://charts.goauthentik.io
+    chart: authentik
+    version: 2026.5.2
+  argoWorkflows:
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argo-workflows
+    version: 1.0.14
+  externalSecrets:
+    repoURL: https://charts.external-secrets.io
+    chart: external-secrets
+    version: 2.5.0
+  juicefsCsiDriver:
+    repoURL: https://juicedata.github.io/charts/
+    chart: juicefs-csi-driver
+    version: 0.31.8
+  openbao:
+    repoURL: https://openbao.github.io/openbao-helm
+    chart: openbao
+    version: 0.28.3
+
+# Secrets live in OpenBao, not in this repo. The External Secrets Operator reads
+# them from OpenBao and writes them into the cluster for you. These get set at
+# bootstrap from config.yaml.gotmpl (the BAO_* environment variables) - set them
+# there, then finish the OpenBao side (auth + policy + the secret) per the README.
+openbao:
+  # Connection to OpenBao. Defaults to the in-cluster OpenBao this repo installs;
+  # point it elsewhere only if you run your own.
+  address: http://openbao.openbao.svc.cluster.local:8200
+  # KV v2 mount that holds the secrets.
+  kvMount: secret
+  # How External Secrets logs in to OpenBao: the auth mount path, and the role
+  # tied to its service account (external-secrets, in the external-secrets namespace).
+  kubernetesAuthMountPath: kubernetes
+  kubernetesAuthRole: external-secrets
+  # Where authentik's secrets sit in OpenBao. It expects two keys there:
+  #   secret_key         - authentik's signing key (50+ random characters)
+  #   postgres-password  - the database password
+  authentikSecretPath: authentik
+  # Where Argo Workflows' SSO credentials sit in OpenBao. Two keys:
+  #   client-id      - the OAuth2 client ID from Authentik
+  #   client-secret  - the OAuth2 client secret from Authentik
+  argoWorkflowsSecretPath: argo-workflows
+  # Auto-unseal. sealConfig is a base64-encoded HCL `seal` stanza for your cloud KMS
+  # (set the plain HCL via BAO_SEAL_CONFIG; see the README). Empty = manual unseal.
+  # The service-account annotation lets OpenBao reach the KMS via workload identity.
+  sealConfig: ""
+  serviceAccountAnnotationKey: ""
+  serviceAccountAnnotationValue: ""

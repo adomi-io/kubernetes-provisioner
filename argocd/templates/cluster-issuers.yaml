@@ -1,0 +1,31 @@
+# The Let's Encrypt issuers cert-manager signs certificates with - a live one and
+# a staging one for testing. Comes up after cert-manager (wave 1). Lives in this
+# repo under charts/cluster-issuers.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-issuers
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.gitRepoURL | quote }}
+    targetRevision: {{ .Values.gitTargetRevision | quote }}
+    path: charts/cluster-issuers
+    helm:
+      valuesObject:
+        acmeEmail: {{ .Values.acmeEmail | quote }}
+        ingressClass: {{ .Values.ingressClass | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

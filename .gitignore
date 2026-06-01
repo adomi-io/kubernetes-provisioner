@@ -1,0 +1,36 @@
+# kubeconfigs
+kubeconfig
+*.kubeconfig
+
+# local secret values / overrides - keep secrets out of git
+*.secret.yaml
+*.secrets.yaml
+*.local.yaml
+.env
+.env.local
+
+# AI assistants / agents
+.claude/
+.cursor/
+.aider*
+
+# editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# logs / temp
+*.log
+*.tmp
+tmp/
+
+# helm / helmfile artifacts
+*.tgz
+Chart.lock

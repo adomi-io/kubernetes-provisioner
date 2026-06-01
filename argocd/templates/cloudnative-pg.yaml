@@ -1,0 +1,27 @@
+# The Postgres operator. We install the operator here; your own projects get a
+# database by asking it for one (a Cluster resource).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudnative-pg
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.cloudnativePg.repoURL | quote }}
+    chart: {{ .Values.charts.cloudnativePg.chart | quote }}
+    targetRevision: {{ .Values.charts.cloudnativePg.version | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

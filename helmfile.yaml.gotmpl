@@ -1,0 +1,58 @@
+# Sets up a brand-new cluster. Run `helmfile apply` and you are done.
+#
+#   helmfile apply
+#
+# This installs just two things: Argo CD (the GitOps engine) and one root app that
+# points it at the argocd/ chart in this repo. From there Argo CD brings up the
+# rest on its own, in order: cert-manager, external-secrets, cluster-issuers,
+# traefik, cloudnative-pg, rabbitmq-cluster-operator, juicefs, openbao,
+# cluster-secrets, authentik, and argo-workflows.
+
+environments:
+  default:
+    values:
+      - config.yaml.gotmpl
+
+---
+
+helmDefaults:
+  wait: true
+  timeout: 600
+  createNamespace: true
+
+repositories:
+  - name: argo
+    url: https://argoproj.github.io/argo-helm
+
+releases:
+  # Argo CD itself - the GitOps engine. It also installs the bits the root app needs next.
+  - name: argo-cd
+    namespace: argocd
+    chart: argo/argo-cd
+    version: 9.5.17
+    values:
+      - values/argo-cd.yaml.gotmpl
+
+  # The root app. Argo CD has to be up first, so we wait for it.
+  - name: argocd-root
+    namespace: argocd
+    chart: ./charts/argocd-root
+    needs:
+      - argocd/argo-cd
+    values:
+      - gitRepoURL: {{ .Values.gitRepoURL }}
+        gitTargetRevision: {{ .Values.gitTargetRevision }}
+        domain: {{ .Values.domain }}
+        acmeEmail: {{ .Values.acmeEmail }}
+        ingressClass: {{ .Values.ingressClass }}
+        clusterIssuer: {{ .Values.clusterIssuer }}
+        openbao:
+          address: {{ .Values.openbao.address }}
+          kvMount: {{ .Values.openbao.kvMount }}
+          kubernetesAuthMountPath: {{ .Values.openbao.kubernetesAuthMountPath }}
+          kubernetesAuthRole: {{ .Values.openbao.kubernetesAuthRole }}
+          authentikSecretPath: {{ .Values.openbao.authentikSecretPath }}
+          argoWorkflowsSecretPath: {{ .Values.openbao.argoWorkflowsSecretPath }}
+          sealConfig: {{ .Values.openbao.sealConfig | quote }}
+          serviceAccountAnnotationKey: {{ .Values.openbao.serviceAccountAnnotationKey | quote }}
+          serviceAccountAnnotationValue: {{ .Values.openbao.serviceAccountAnnotationValue | quote }}

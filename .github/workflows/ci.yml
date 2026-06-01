@@ -1,0 +1,64 @@
+name: CI
+
+# Renders the bootstrap (argo-cd + root app) and the app-of-apps chart on each
+# push and pull request, so a broken chart version, values file, or Application
+# manifest fails here instead of on a cluster. On main, also builds and
+# publishes the Docker image.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  HELM_VERSION: v4.2.0
+  HELMFILE_VERSION: 1.5.2
+
+jobs:
+  render:
+    name: Render manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install helm and helmfile
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/bin"
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
+            | tar -xz -C /tmp linux-amd64/helm
+          mv /tmp/linux-amd64/helm "$HOME/bin/helm"
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C "$HOME/bin" helmfile
+          chmod +x "$HOME/bin/"*
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Render the bootstrap (argo-cd + root app)
+        run: helmfile template
+
+      - name: Render the app-of-apps chart (child Applications)
+        run: helm template platform ./argocd
+
+  image:
+    name: Build and publish image
+    needs: render
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest

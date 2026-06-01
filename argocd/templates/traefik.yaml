@@ -1,0 +1,67 @@
+# Traefik is the ingress controller: it routes outside traffic to your apps and
+# handles HTTPS. It asks the cloud for a load balancer with a public IP - point
+# your DNS at that address once it is up.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.traefik.repoURL | quote }}
+    chart: {{ .Values.charts.traefik.chart | quote }}
+    targetRevision: {{ .Values.charts.traefik.version | quote }}
+    helm:
+      valuesObject:
+        deployment:
+          replicas: 2
+        ingressClass:
+          enabled: true
+          isDefaultClass: true
+          name: {{ .Values.ingressClass }}
+        providers:
+          kubernetesCRD:
+            enabled: true
+          kubernetesIngress:
+            enabled: true
+            publishedService:
+              enabled: true
+        ports:
+          web:
+            port: 8000
+            expose:
+              default: true
+            exposedPort: 80
+            protocol: TCP
+            http:
+              redirections:
+                entryPoint:
+                  to: websecure
+                  scheme: https
+                  permanent: true
+          websecure:
+            port: 8443
+            expose:
+              default: true
+            exposedPort: 443
+            protocol: TCP
+            http:
+              tls:
+                enabled: true
+        service:
+          enabled: true
+          type: LoadBalancer
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

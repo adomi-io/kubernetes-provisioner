@@ -1,0 +1,33 @@
+# cert-manager hands out TLS certificates from Let's Encrypt. It comes up first
+# (wave 0) so everything that needs a certificate later finds it ready.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.certManager.repoURL | quote }}
+    chart: {{ .Values.charts.certManager.chart | quote }}
+    targetRevision: {{ .Values.charts.certManager.version | quote }}
+    helm:
+      parameters:
+        - name: crds.enabled
+          value: "true"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # cert-manager's definitions are big, so we let Kubernetes apply them
+      # server-side to stay under a size limit.
+      - ServerSideApply=true

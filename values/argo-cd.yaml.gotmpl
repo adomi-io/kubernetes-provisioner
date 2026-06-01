@@ -1,0 +1,21 @@
+# Argo CD's own settings. It runs the GitOps engine and a dashboard at
+# argocd.<domain>. Traefik handles HTTPS out front, so Argo CD serves plain HTTP
+# behind it (that is what "insecure" means here - it is not exposed directly).
+#
+# The web address is set up right away, but it only starts working once Traefik
+# and the certificate issuer come up a moment later. That is normal on a fresh
+# cluster.
+
+configs:
+  params:
+    # Traefik already handles HTTPS, so this keeps Argo CD from redirecting in a loop.
+    server.insecure: true
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: {{ .Values.ingressClass }}
+    annotations:
+      cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+    hostname: argocd.{{ .Values.domain }}
+    tls: true

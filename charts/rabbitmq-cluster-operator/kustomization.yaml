@@ -1,0 +1,5 @@
+# Installs the RabbitMQ operator straight from RabbitMQ's published manifest. Your
+# projects create RabbitmqCluster resources to get queues; this repo just installs
+# the operator. https://www.rabbitmq.com/kubernetes/operator/install-operator
+resources:
+  - https://github.com/rabbitmq/cluster-operator/releases/download/v2.21.0/cluster-operator.yml

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: cluster-secrets
+description: OpenBao ClusterSecretStore + ExternalSecrets consumed by platform components
+type: application
+version: 0.1.0

@@ -1,0 +1,59 @@
+name: Deploy
+
+# Bootstraps a cluster from a GitHub Environment. For each environment, set the
+# platform settings as environment Variables (DOMAIN, ACME_EMAIL, GIT_REPO_URL,
+# BAO_*) and add the target cluster's kubeconfig as a KUBECONFIG secret
+# (base64-encoded). Then run this workflow and pick the environment.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which GitHub Environment to deploy
+        type: environment
+        required: true
+
+env:
+  HELM_VERSION: v4.2.0
+  HELMFILE_VERSION: 1.5.2
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      # Pulled from the environment's Variables. Anything unset falls back to the
+      # defaults in config.yaml.gotmpl.
+      DOMAIN: ${{ vars.DOMAIN }}
+      ACME_EMAIL: ${{ vars.ACME_EMAIL }}
+      GIT_REPO_URL: ${{ vars.GIT_REPO_URL }}
+      GIT_TARGET_REVISION: ${{ vars.GIT_TARGET_REVISION }}
+      BAO_ADDR: ${{ vars.BAO_ADDR }}
+      BAO_KV_MOUNT: ${{ vars.BAO_KV_MOUNT }}
+      BAO_KUBERNETES_AUTH_MOUNT: ${{ vars.BAO_KUBERNETES_AUTH_MOUNT }}
+      BAO_KUBERNETES_AUTH_ROLE: ${{ vars.BAO_KUBERNETES_AUTH_ROLE }}
+      BAO_AUTHENTIK_SECRET_PATH: ${{ vars.BAO_AUTHENTIK_SECRET_PATH }}
+      BAO_ARGO_WORKFLOWS_SECRET_PATH: ${{ vars.BAO_ARGO_WORKFLOWS_SECRET_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install helm and helmfile
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/bin"
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
+            | tar -xz -C /tmp linux-amd64/helm
+          mv /tmp/linux-amd64/helm "$HOME/bin/helm"
+          curl -fsSL "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C "$HOME/bin" helmfile
+          chmod +x "$HOME/bin/"*
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          helm plugin install https://github.com/databus23/helm-diff --verify=false
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: helmfile apply
+        run: helmfile apply

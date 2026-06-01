@@ -1,0 +1,28 @@
+# The JuiceFS CSI driver. It lets pods mount a shared POSIX filesystem backed by
+# object storage. We install the driver here; your projects get storage by
+# creating a StorageClass (pointing at your bucket + metadata engine) and PVCs
+# against it. Comes up in wave 1, alongside the other operators.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: juicefs
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.juicefsCsiDriver.repoURL | quote }}
+    chart: {{ .Values.charts.juicefsCsiDriver.chart | quote }}
+    targetRevision: {{ .Values.charts.juicefsCsiDriver.version | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: juicefs-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
