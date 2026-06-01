@@ -191,16 +191,19 @@ kubectl -n openbao exec -it openbao-0 -- sh
 ```
 
 ```bash
-# 1. Initialise. This prints unseal keys and a root token - SAVE THEM SOMEWHERE
-#    SAFE. They are shown once and are the only way back in.
+# 1. Initialise. Prints 5 unseal keys + a root token - SAVE THEM SOMEWHERE SAFE.
+#    They are shown once and are the only way back in.
 bao operator init
 
-# 2. Unseal (repeat with the number of keys it asks for)
-bao operator unseal
+# 2. Unseal: run this 3 times, each with a DIFFERENT key (3 of 5 is the threshold).
+#    Pass the key as an argument - the hidden prompt is unreliable over kubectl exec.
+bao operator unseal <unseal-key-1>
+bao operator unseal <unseal-key-2>
+bao operator unseal <unseal-key-3>
 
 # 3. Log in with the root token, then turn on a KV store, Kubernetes auth, and a
 #    read-only policy for the operator.
-bao login
+bao login <root-token>
 bao secrets enable -path=secret kv-v2
 bao auth enable kubernetes
 bao write auth/kubernetes/config kubernetes_host="https://kubernetes.default.svc"
@@ -213,10 +216,11 @@ bao write auth/kubernetes/role/external-secrets \
   bound_service_account_namespaces=external-secrets \
   policies=external-secrets ttl=1h
 
-# 4. Store the secrets the platform needs
+# 4. Store the secrets the platform needs. The OpenBao image has no openssl, so
+#    generate the random values from /dev/urandom.
 bao kv put secret/authentik \
-  secret_key="$(openssl rand -base64 60 | tr -d '\n')" \
-  postgres-password="$(openssl rand -base64 24 | tr -d '\n')"
+  secret_key="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64)" \
+  postgres-password="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)"
 ```
 
 Once it's unsealed and these are in place, External Secrets syncs them and the remaining apps finish coming up. The KV mount, auth
