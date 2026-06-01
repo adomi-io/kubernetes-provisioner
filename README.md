@@ -82,7 +82,9 @@ curl -fsSL https://raw.githubusercontent.com/adomi-io/kubernetes-provisioner/mai
 git clone https://github.com/adomi-io/kubernetes-provisioner.git
 cd kubernetes-provisioner
 
-helmfile apply
+# First run on a fresh cluster: --skip-diff-on-install lets Argo CD install its
+# CRDs before the root app is diffed. (The curl installer adds this for you.)
+helmfile apply --skip-diff-on-install
 ```
 
 ### With Docker
@@ -277,9 +279,12 @@ show how to make a group admin vs read-only. Until you set that up, everyone who
 # Usage
 
 ```bash
-helmfile apply                          # the bootstrap: install Argo CD + the root app
+helmfile apply --skip-diff-on-install   # first bootstrap: install Argo CD + the root app
 kubectl -n argocd get applications      # watch Argo CD bring everything up
 ```
+
+`--skip-diff-on-install` is only needed the first time - it stops helmfile diffing the root app before Argo CD's `Application` CRD
+exists. After the first run, plain `helmfile apply` works.
 
 Early on, Argo CD's own web address won't have a certificate yet (Traefik and cert-manager are still coming up). Reach it directly
 with a port-forward:

@@ -15,7 +15,8 @@
 #   ACME_EMAIL    Let's Encrypt email (e.g. you@example.com; prompted if unset)
 #   REPO          git repo            (default: adomi-io/kubernetes-provisioner)
 #   REF           branch/tag/sha      (default: main)
-#   INSTALL_DIR   where to checkout   (default: ./kubernetes-provisioner)
+#   INSTALL_DIR   where to checkout   (default: ./kubernetes-provisioner; when run
+#                 from inside an existing checkout, that checkout is used as-is)
 #   NO_RUN=1      install + checkout only, run nothing
 #
 # POSIX sh on purpose - runs before bash is guaranteed.
@@ -23,6 +24,8 @@ set -eu
 
 REPO="${REPO:-adomi-io/kubernetes-provisioner}"
 REF="${REF:-main}"
+# Remember whether INSTALL_DIR was set explicitly before we apply the default.
+INSTALL_DIR_SET="${INSTALL_DIR:+yes}"
 INSTALL_DIR="${INSTALL_DIR:-./kubernetes-provisioner}"
 
 HELM_VERSION="${HELM_VERSION:-v4.2.0}"
@@ -134,11 +137,18 @@ main() {
   ensure_helmfile
   ensure_diff_plugin
 
-  fetch_repo "$INSTALL_DIR"
+  # If we're already inside a checkout of this repo (and INSTALL_DIR wasn't set
+  # explicitly), use it as-is instead of cloning a copy of the repo into itself.
+  if [ -z "$INSTALL_DIR_SET" ] && [ -f helmfile.yaml.gotmpl ] && [ -d argocd ] && [ -d charts/argocd-root ]; then
+    INSTALL_DIR="."
+    say "running inside an existing checkout; using it as-is (not cloning)"
+  else
+    fetch_repo "$INSTALL_DIR"
+  fi
 
   if [ "${NO_RUN:-0}" = "1" ] || [ "$#" -eq 0 ]; then
     say "ready. Bootstrap the cluster (set your domain + email):"
-    printf '    cd %s\n' "$INSTALL_DIR"
+    [ "$INSTALL_DIR" = "." ] || printf '    cd %s\n' "$INSTALL_DIR"
     printf '    DOMAIN=example.com ACME_EMAIL=you@example.com helmfile apply\n'
     exit 0
   fi
@@ -147,7 +157,13 @@ main() {
   cd "$INSTALL_DIR"
   resolve_config
   say "running: helmfile $* (domain=$DOMAIN)"
-  exec helmfile "$@"
+  # On a fresh cluster the Argo CD Application CRD doesn't exist yet, so helmfile
+  # can't diff the root app. For `apply`, skip the diff on not-yet-installed
+  # releases - Argo CD (which creates that CRD) then installs before the root app.
+  case "${1:-}" in
+    apply) exec helmfile "$@" --skip-diff-on-install ;;
+    *)     exec helmfile "$@" ;;
+  esac
 }
 
 main "$@"

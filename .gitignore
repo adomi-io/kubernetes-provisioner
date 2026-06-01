@@ -34,3 +34,6 @@ tmp/
 # helm / helmfile artifacts
 *.tgz
 Chart.lock
+
+# accidental nested checkout from install.sh (INSTALL_DIR default)
+/kubernetes-provisioner/
