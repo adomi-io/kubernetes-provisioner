@@ -1,0 +1,57 @@
+# In-cluster S3 store (SeaweedFS). Stands in for an external S3 bucket - JuiceFS,
+# CNPG backups, and Authentik media sit on top of it. Point S3_ENDPOINT / S3_BUCKET
+# at DigitalOcean Spaces (or any S3) later to swap it out.
+#
+# The S3 access/secret keys live in OpenBao; cluster-secrets (wave 3) turns them
+# into the seaweedfs-s3-config Secret this reads. Comes up in wave 4, after that.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: seaweedfs
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.seaweedfs.repoURL | quote }}
+    chart: {{ .Values.charts.seaweedfs.chart | quote }}
+    targetRevision: {{ .Values.charts.seaweedfs.version | quote }}
+    helm:
+      valuesObject:
+        # Persist to block storage (the chart defaults to node-local hostPath).
+        master:
+          enabled: true
+          data:
+            type: persistentVolumeClaim
+            size: 1Gi
+        volume:
+          enabled: true
+          dataDirs:
+            - name: data1
+              type: persistentVolumeClaim
+              size: 10Gi
+              maxVolumes: 0
+        filer:
+          enabled: true
+          data:
+            type: persistentVolumeClaim
+            size: 5Gi
+        # The S3 gateway, authenticated with the keys from OpenBao.
+        s3:
+          enabled: true
+          enableAuth: true
+          existingConfigSecret: seaweedfs-s3-config
+          createBuckets:
+            - name: {{ .Values.s3.bucket }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: seaweedfs
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

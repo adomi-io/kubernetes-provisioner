@@ -74,6 +74,18 @@ data:
         log "seeded secret/$AUTHENTIK_PATH"
       fi
 
+      # seed S3 access/secret keys for the object store, only if absent
+      code=$(curl -s -H "$TH" -o /dev/null -w '%{http_code}' "$BAO_ADDR/v1/$KV_MOUNT/data/$S3_PATH")
+      if [ "$code" = "200" ]; then
+        log "secret/$S3_PATH already present; leaving it"
+      else
+        ak=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
+        sk=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
+        curl -s -H "$TH" -X POST "$BAO_ADDR/v1/$KV_MOUNT/data/$S3_PATH" \
+          -d "$(jq -n --arg ak "$ak" --arg sk "$sk" '{data:{"access-key":$ak,"secret-key":$sk}}')" >/dev/null
+        log "seeded secret/$S3_PATH"
+      fi
+
       log "reconciled OK"
       sleep 60
     done

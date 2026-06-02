@@ -10,3 +10,4 @@ kvMount: secret
 kubernetesAuthMountPath: kubernetes
 kubernetesAuthRole: external-secrets
 authentikSecretPath: authentik
+s3SecretPath: s3

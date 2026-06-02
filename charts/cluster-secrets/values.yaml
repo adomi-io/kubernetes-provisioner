@@ -7,3 +7,4 @@ openbao:
   kubernetesAuthRole: external-secrets
   authentikSecretPath: authentik
   argoWorkflowsSecretPath: argo-workflows
+s3SecretPath: s3

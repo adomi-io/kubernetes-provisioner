@@ -26,3 +26,11 @@ openbao:
   sealConfig:                    {{ env "BAO_SEAL_CONFIG"           | default "" | b64enc | quote }}
   serviceAccountAnnotationKey:   {{ env "BAO_SA_ANNOTATION_KEY"     | default "" | quote }}
   serviceAccountAnnotationValue: {{ env "BAO_SA_ANNOTATION_VALUE"   | default "" | quote }}
+
+# Object storage. Defaults to the in-cluster SeaweedFS this repo installs; point
+# S3_ENDPOINT / S3_BUCKET at an external bucket (e.g. DigitalOcean Spaces) to swap
+# it out. The access/secret keys are generated into OpenBao at secretPath.
+s3:
+  endpoint:   {{ env "S3_ENDPOINT"       | default "http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333" | quote }}
+  bucket:     {{ env "S3_BUCKET"         | default "platform" | quote }}
+  secretPath: {{ env "BAO_S3_SECRET_PATH" | default "s3" | quote }}

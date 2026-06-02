@@ -57,3 +57,7 @@ releases:
           sealConfig: {{ .Values.openbao.sealConfig | quote }}
           serviceAccountAnnotationKey: {{ .Values.openbao.serviceAccountAnnotationKey | quote }}
           serviceAccountAnnotationValue: {{ .Values.openbao.serviceAccountAnnotationValue | quote }}
+        s3:
+          endpoint: {{ .Values.s3.endpoint | quote }}
+          bucket: {{ .Values.s3.bucket | quote }}
+          secretPath: {{ .Values.s3.secretPath | quote }}

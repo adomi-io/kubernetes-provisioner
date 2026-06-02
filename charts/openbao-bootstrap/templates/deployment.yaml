@@ -32,6 +32,8 @@ spec:
               value: {{ .Values.kubernetesAuthRole | quote }}
             - name: AUTHENTIK_PATH
               value: {{ .Values.authentikSecretPath | quote }}
+            - name: S3_PATH
+              value: {{ .Values.s3SecretPath | quote }}
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:

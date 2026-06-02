@@ -44,6 +44,10 @@ charts:
     repoURL: https://openbao.github.io/openbao-helm
     chart: openbao
     version: 0.28.3
+  seaweedfs:
+    repoURL: https://seaweedfs.github.io/seaweedfs/helm
+    chart: seaweedfs
+    version: 4.31.0
 
 # OpenBao connection + paths. Set at bootstrap from config.yaml.gotmpl (the BAO_*
 # env vars); the README covers the OpenBao side (auth, policy, secrets).
@@ -60,3 +64,9 @@ openbao:
   sealConfig: ""
   serviceAccountAnnotationKey: ""
   serviceAccountAnnotationValue: ""
+
+# Object storage - the in-cluster SeaweedFS, or an external bucket if you repoint it.
+s3:
+  endpoint: http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333
+  bucket: platform
+  secretPath: s3
