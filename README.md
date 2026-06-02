@@ -29,11 +29,12 @@ helmfile apply
   ├─ argo-cd            the GitOps engine
   └─ argocd-root        one root app that points Argo CD at this repo
         └─ Argo CD brings up everything else, in order:
-             cert-manager · external-secrets
-             cluster-issuers · traefik · cloudnative-pg · rabbitmq · juicefs
+             cert-manager, external-secrets
+             cluster-issuers, traefik, cloudnative-pg, rabbitmq, juicefs
              openbao
-             openbao-bootstrap · cluster-secrets   (init/unseal/seed OpenBao, no touch)
-             authentik · argo-workflows
+             openbao-bootstrap, cluster-secrets   (init/unseal/seed OpenBao)
+             authentik, argo-workflows
+             authentik-registrar                   (registers SSO apps)
 ```
 
 Helmfile only installs Argo CD and that one root app. Everything else is just a file in [`argocd/templates/`](argocd/templates/)
@@ -111,6 +112,7 @@ charts/
   cluster-issuers/              # the Let's Encrypt issuers
   cluster-secrets/              # the OpenBao connection + which secrets to pull
   openbao-bootstrap/            # reconciler that inits/unseals/seeds OpenBao
+  authentik-registrar/          # reconciler that registers SSO apps in Authentik
   rabbitmq-cluster-operator/    # the RabbitMQ operator
 argocd/                         # everything Argo CD installs
   values.yaml                   # versions, OpenBao settings, and what's passed down from config
@@ -237,26 +239,54 @@ For manual admin, log in with that token from the pod: `kubectl -n openbao exec 
 Add an `ExternalSecret` to `charts/cluster-secrets/templates/`, put the value in OpenBao, and point the component at the `Secret`
 that comes out. Use the Authentik files as a template.
 
-### Argo Workflows single sign-on
+## Single sign-on registers itself
 
-The Argo Workflows UI logs in through Authentik. Authentik has to know about the app first, so there's a one-time setup in the
-Authentik UI:
+Apps that log in through Authentik (OIDC) need an Authentik **provider** + **application** to exist, with a client ID/secret that
+the app then reads. Rather than clicking that together in the Authentik UI per app, the **`authentik-registrar`** does it for you -
+the same hands-off, idempotent style as `openbao-bootstrap`. For each app in its list it:
 
-1. Create an **OAuth2 / OpenID Provider**. Set its redirect URI to `https://argo.<your-domain>/oauth2/callback` and client type to
-   *Confidential*. Note the **Client ID** and **Client Secret** it gives you.
-2. Create an **Application** for that provider with the slug `argo-workflows` (that slug is the `argo-workflows` in the issuer URL).
-3. Decide who gets in: put those people in an Authentik group, and make sure the provider includes the **groups** scope so Argo can
-   see it.
-4. Store the two credentials in OpenBao (run it from the pod), where the `argo-workflows-sso` ExternalSecret picks them up:
+1. ensures a `client-id` / `client-secret` pair exists at `secret/<app>` in OpenBao - generated once, never overwritten;
+2. ensures an OAuth2 provider + Application exist in Authentik using those exact credentials (looked up by name/slug, so re-runs
+   never duplicate);
+
+and External Secrets then delivers `secret/<app>` to the app's namespace as usual. **OpenBao is the source of truth** - Authentik is
+made to match it - so a re-run just reconciles, and a lost Authentik object is recreated with the same credentials.
+
+It talks to the Authentik API with a bootstrap token. `openbao-bootstrap` generates one into `secret/<authentik path>` (key
+`bootstrap-token`), and Authentik reads it at **first boot** as `AUTHENTIK_BOOTSTRAP_TOKEN` to mint an `akadmin` API token. That env
+is only read on first boot, so on a cluster where Authentik already exists, create a token for `akadmin` in the UI once and store it:
 
 ```bash
 RT=$(kubectl -n openbao get secret openbao-keys -o jsonpath='{.data.root-token}' | base64 -d)
 kubectl -n openbao exec -it openbao-0 -- sh -c \
-  "bao login $RT >/dev/null && bao kv put secret/argo-workflows client-id=<client-id> client-secret=<client-secret>"
+  "bao login $RT >/dev/null && bao kv patch secret/authentik bootstrap-token=<token>"
 ```
 
-Roles map from those Authentik groups - the Argo Workflows [SSO + RBAC docs](https://argo-workflows.readthedocs.io/en/latest/argo-server-sso/)
-show how to make a group admin vs read-only. Until you set that up, everyone who logs in gets the default (read-only) access.
+### Argo Workflows single sign-on
+
+Set `argoWorkflowsSso: true` in `argocd/values.yaml`. That switches the Argo Workflows server to SSO **and** adds it to the
+registrar's list, so the Authentik app and its credentials are created for you - no manual UI setup. The app lands at slug
+`argo-workflows` with redirect `https://argo.<domain>/oauth2/callback` and the `openid profile email groups` scopes (the registrar
+creates a `groups` scope mapping if one doesn't exist yet).
+
+Who gets in is still yours to decide: put people in an Authentik group and use the Argo Workflows
+[SSO + RBAC docs](https://argo-workflows.readthedocs.io/en/latest/argo-server-sso/) to make a group admin vs read-only. Until you
+set that up, everyone who logs in gets the default (read-only) access.
+
+### Registering another app
+
+Add an entry to the registrar's `apps` list - it's built in [`argocd/templates/authentik-registrar.yaml`](argocd/templates/authentik-registrar.yaml),
+gated behind a flag the same way `argo-workflows` is:
+
+```yaml
+apps:
+  - slug: my-app                                       # OpenBao path + Authentik slug
+    redirectUri: https://my-app.<domain>/oauth2/callback
+    scopes: [openid, profile, email, groups]
+```
+
+Then add an `ExternalSecret` (copy `argo-workflows-externalsecret.yaml`) to deliver `secret/my-app`'s `client-id`/`client-secret`
+into your app's namespace, and point the app at the resulting `Secret`.
 
 # Usage
 

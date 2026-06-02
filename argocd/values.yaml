@@ -8,8 +8,9 @@ clusterIssuer: letsencrypt-prod
 gitRepoURL: https://github.com/adomi-io/kubernetes-provisioner.git
 gitTargetRevision: main
 
-# Argo Workflows: log in via Authentik SSO (needs a one-time Authentik OAuth app
-# plus the argo-workflows-sso secret in OpenBao). Off = the server's built-in auth.
+# Argo Workflows: log in via Authentik SSO. Off = the server's built-in auth. When
+# on, the authentik-registrar (below) creates the Authentik app and stores its
+# credentials in OpenBao for you - no manual setup.
 argoWorkflowsSso: false
 
 # Where each off-the-shelf component comes from, pinned to a version. The pieces
@@ -68,6 +69,16 @@ openbao:
   sealConfig: ""
   serviceAccountAnnotationKey: ""
   serviceAccountAnnotationValue: ""
+
+# Authentik registrar: registers SSO apps in Authentik (OAuth2 provider + Application)
+# and stores their client credentials in OpenBao, idempotently. The apps it manages
+# are turned on by feature flags (e.g. argoWorkflowsSso); see authentik-registrar.yaml.
+# These reference Authentik's out-of-the-box flows and self-signed signing cert.
+authentik:
+  address: http://authentik-server.authentik.svc.cluster.local
+  authorizationFlowSlug: default-provider-authorization-implicit-consent
+  invalidationFlowSlug: default-provider-invalidation-flow
+  signingKeyName: authentik Self-signed Certificate
 
 # Object storage - the in-cluster SeaweedFS, or an external bucket if you repoint it.
 s3:

@@ -1,0 +1,48 @@
+# Registers apps with Authentik so they don't have to be set up by hand. For each
+# app in the list it ensures an OAuth2 provider + Application exist in Authentik and
+# stores the client-id/client-secret in OpenBao (generated once); External Secrets
+# then delivers them to the app (see cluster-secrets). It's idempotent - run it as
+# often as you like, each pass just makes the app is registered and in sync.
+#
+# Comes up in wave 5, after Authentik (wave 4) is serving. The list below is empty
+# unless a feature flag turns an app on - argo-workflows is wired when
+# argoWorkflowsSso is set. Add more apps the same way.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: authentik-registrar
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.gitRepoURL | quote }}
+    targetRevision: {{ .Values.gitTargetRevision | quote }}
+    path: charts/authentik-registrar
+    helm:
+      valuesObject:
+        baoAddr: {{ .Values.openbao.address | quote }}
+        kvMount: {{ .Values.openbao.kvMount | quote }}
+        authentikAddr: {{ .Values.authentik.address | quote }}
+        authentikSecretPath: {{ .Values.openbao.authentikSecretPath | quote }}
+        authorizationFlowSlug: {{ .Values.authentik.authorizationFlowSlug | quote }}
+        invalidationFlowSlug: {{ .Values.authentik.invalidationFlowSlug | quote }}
+        signingKeyName: {{ .Values.authentik.signingKeyName | quote }}
+        apps:
+{{- if .Values.argoWorkflowsSso }}
+          - slug: {{ .Values.openbao.argoWorkflowsSecretPath | quote }}
+            redirectUri: https://argo.{{ .Values.domain }}/oauth2/callback
+            scopes: [openid, profile, email, groups]
+{{- end }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openbao
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

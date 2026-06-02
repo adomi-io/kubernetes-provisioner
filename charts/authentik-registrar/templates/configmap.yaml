@@ -1,0 +1,131 @@
+# The registrar loop. For each app it makes sure (a) a client-id/client-secret pair
+# exists at secret/<slug> in OpenBao - generated once, never overwritten - and (b)
+# an OAuth2 provider + Application exist in Authentik using those exact credentials.
+# OpenBao is the source of truth; Authentik is made to match it. External Secrets
+# then copies secret/<slug> into the app's namespace (see cluster-secrets).
+#
+# Talks to OpenBao and Authentik over HTTP (curl + jq); reads the OpenBao root token
+# from the openbao-keys Secret (kubectl). Safe to run forever and to re-run: looking
+# up by name/slug before creating means it never duplicates, and it never regenerates
+# credentials that are already stored.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-registrar
+data:
+  register.sh: |
+    #!/bin/sh
+    set -u
+    log() { echo "[authentik-registrar] $*"; }
+
+    # KV v2 read at secret/<path>; prints the raw API response.
+    bao_read() { curl -s -H "X-Vault-Token: $RT" "$BAO_ADDR/v1/$KV_MOUNT/data/$1"; }
+
+    # Resolve a scope mapping to its pk. Tries the current API path, then the older
+    # one. For "groups" (no default mapping ships) it creates one if absent.
+    resolve_scope() {
+      sc="$1"
+      pk=$(curl -s -H "$AH" "$AK_ADDR/api/v3/propertymappings/provider/scope/?scope_name=$sc" | jq -r '.results[0].pk // empty')
+      [ -n "$pk" ] || pk=$(curl -s -H "$AH" "$AK_ADDR/api/v3/propertymappings/scope/?scope_name=$sc" | jq -r '.results[0].pk // empty')
+      if [ -z "$pk" ] && [ "$sc" = "groups" ]; then
+        expr='return {"groups": [group.name for group in user.ak_groups.all()]}'
+        body=$(jq -n --arg n "Groups (authentik-registrar)" --arg e "$expr" '{name:$n,scope_name:"groups",expression:$e}')
+        pk=$(curl -s -H "$AH" -H 'Content-Type: application/json' -X POST "$AK_ADDR/api/v3/propertymappings/provider/scope/" -d "$body" | jq -r '.pk // empty')
+        [ -n "$pk" ] && log "created 'groups' scope mapping"
+      fi
+      echo "$pk"
+    }
+
+    while :; do
+      # 1. OpenBao root token (from the Secret openbao-bootstrap writes)
+      RT=$(kubectl -n "$POD_NAMESPACE" get secret "$KEYS_SECRET" -o jsonpath='{.data.root-token}' 2>/dev/null | base64 -d 2>/dev/null || true)
+      [ -n "$RT" ] || { log "waiting for OpenBao root token..."; sleep 10; continue; }
+
+      # 2. Authentik API token (the bootstrap-token openbao-bootstrap seeded)
+      AKT=$(bao_read "$AUTHENTIK_SECRET_PATH" | jq -r '.data.data["bootstrap-token"] // empty')
+      [ -n "$AKT" ] || { log "no Authentik bootstrap-token in OpenBao yet"; sleep 10; continue; }
+      AH="Authorization: Bearer $AKT"
+
+      # 3. Authentik up and the token accepted?
+      code=$(curl -s -H "$AH" -o /dev/null -w '%{http_code}' "$AK_ADDR/api/v3/core/users/me/")
+      [ "$code" = "200" ] || { log "Authentik API not ready (HTTP $code)"; sleep 10; continue; }
+
+      # 4. shared references, resolved once per pass
+      authz=$(curl -s -H "$AH" "$AK_ADDR/api/v3/flows/instances/?slug=$AUTH_FLOW_SLUG" | jq -r '.results[0].pk // empty')
+      inval=$(curl -s -H "$AH" "$AK_ADDR/api/v3/flows/instances/?slug=$INVAL_FLOW_SLUG" | jq -r '.results[0].pk // empty')
+      skn=$(printf '%s' "$SIGNING_KEY_NAME" | sed 's/ /%20/g')
+      skey=$(curl -s -H "$AH" "$AK_ADDR/api/v3/crypto/certificatekeypairs/?name=$skn" | jq -r '.results[0].pk // empty')
+      if [ -z "$authz" ] || [ -z "$inval" ]; then
+        log "could not resolve authorization/invalidation flows; retrying"; sleep 15; continue
+      fi
+
+      n=$(echo "$APPS_JSON" | jq 'length')
+      [ "$n" -gt 0 ] 2>/dev/null || { log "no apps to register"; sleep "$INTERVAL"; continue; }
+
+      i=0
+      while [ "$i" -lt "$n" ]; do
+        app=$(echo "$APPS_JSON" | jq -c ".[$i]"); i=$((i+1))
+        slug=$(echo "$app" | jq -r '.slug')
+        redirect=$(echo "$app" | jq -r '.redirectUri')
+
+        # client credentials: generate once, store at secret/<slug>, never overwrite
+        cur=$(bao_read "$slug")
+        cid=$(echo "$cur" | jq -r '.data.data["client-id"] // empty')
+        csec=$(echo "$cur" | jq -r '.data.data["client-secret"] // empty')
+        if [ -z "$cid" ] || [ -z "$csec" ]; then
+          cid=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)
+          csec=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 128)
+          # merge so we don't clobber any other fields already under this path
+          merged=$(echo "$cur" | jq -c --arg id "$cid" --arg s "$csec" '{data: ((.data.data // {}) + {"client-id":$id,"client-secret":$s})}')
+          curl -s -H "X-Vault-Token: $RT" -X POST "$BAO_ADDR/v1/$KV_MOUNT/data/$slug" -d "$merged" >/dev/null
+          log "$slug: generated client credentials in secret/$slug"
+        fi
+
+        # resolve the requested scopes to property-mapping pks
+        pmaps='[]'
+        for sc in $(echo "$app" | jq -r '.scopes[]'); do
+          spk=$(resolve_scope "$sc")
+          if [ -n "$spk" ]; then
+            pmaps=$(echo "$pmaps" | jq -c --arg p "$spk" '. + [$p]')
+          else
+            log "$slug: scope '$sc' not found, skipping it"
+          fi
+        done
+
+        # build the provider body (signing_key only if we found one)
+        pbody=$(jq -n --arg name "$slug" --arg af "$authz" --arg if "$inval" \
+          --arg cid "$cid" --arg cs "$csec" --arg ru "$redirect" --argjson pm "$pmaps" \
+          '{name:$name, authorization_flow:$af, invalidation_flow:$if, client_type:"confidential",
+            client_id:$cid, client_secret:$cs, property_mappings:$pm,
+            redirect_uris:[{matching_mode:"strict", url:$ru}]}')
+        if [ -n "$skey" ]; then
+          pbody=$(echo "$pbody" | jq -c --arg sk "$skey" '. + {signing_key:$sk}')
+        fi
+
+        # create or update the OAuth2 provider (matched by name)
+        ppk=$(curl -s -H "$AH" "$AK_ADDR/api/v3/providers/oauth2/?search=$slug" | jq -r --arg n "$slug" '[.results[] | select(.name==$n)][0].pk // empty')
+        if [ -n "$ppk" ]; then
+          curl -s -H "$AH" -H 'Content-Type: application/json' -X PATCH "$AK_ADDR/api/v3/providers/oauth2/$ppk/" -d "$pbody" >/dev/null
+          log "$slug: OAuth2 provider in sync ($ppk)"
+        else
+          ppk=$(curl -s -H "$AH" -H 'Content-Type: application/json' -X POST "$AK_ADDR/api/v3/providers/oauth2/" -d "$pbody" | jq -r '.pk // empty')
+          [ -n "$ppk" ] || { log "$slug: provider create failed; skipping app"; continue; }
+          log "$slug: created OAuth2 provider ($ppk)"
+        fi
+
+        # create or update the Application (looked up by slug)
+        acode=$(curl -s -H "$AH" -o /dev/null -w '%{http_code}' "$AK_ADDR/api/v3/core/applications/$slug/")
+        if [ "$acode" = "200" ]; then
+          curl -s -H "$AH" -H 'Content-Type: application/json' -X PATCH "$AK_ADDR/api/v3/core/applications/$slug/" \
+            -d "$(jq -n --argjson p "$ppk" '{provider:$p}')" >/dev/null
+          log "$slug: application in sync"
+        else
+          curl -s -H "$AH" -H 'Content-Type: application/json' -X POST "$AK_ADDR/api/v3/core/applications/" \
+            -d "$(jq -n --arg name "$slug" --arg slug "$slug" --argjson p "$ppk" '{name:$name, slug:$slug, provider:$p}')" >/dev/null
+          log "$slug: created application"
+        fi
+      done
+
+      log "reconciled OK"
+      sleep "$INTERVAL"
+    done

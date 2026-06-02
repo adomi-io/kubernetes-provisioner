@@ -38,6 +38,13 @@ spec:
                 secretKeyRef:
                   name: authentik-secrets
                   key: postgres-password
+            # Read on first boot only: creates an API token for akadmin that the
+            # authentik-registrar uses to register apps. See the README's SSO section.
+            - name: AUTHENTIK_BOOTSTRAP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-secrets
+                  key: bootstrap-token
         postgresql:
           enabled: true
           auth:

@@ -74,6 +74,17 @@ data:
         log "seeded secret/$AUTHENTIK_PATH"
       fi
 
+      # Authentik also needs an API bootstrap token: it's fed in at first boot as
+      # AUTHENTIK_BOOTSTRAP_TOKEN and reused by the authentik-registrar to call the
+      # API. Add it without clobbering the rest of the secret; generate only if absent.
+      cur=$(curl -s -H "$TH" "$BAO_ADDR/v1/$KV_MOUNT/data/$AUTHENTIK_PATH")
+      if [ "$(echo "$cur" | jq -r '.data.data["bootstrap-token"] // empty')" = "" ]; then
+        bt=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 60)
+        merged=$(echo "$cur" | jq -c --arg bt "$bt" '{data: ((.data.data // {}) + {"bootstrap-token":$bt})}')
+        curl -s -H "$TH" -X POST "$BAO_ADDR/v1/$KV_MOUNT/data/$AUTHENTIK_PATH" -d "$merged" >/dev/null
+        log "added bootstrap-token to secret/$AUTHENTIK_PATH"
+      fi
+
       # seed S3 access/secret keys for the object store, only if absent
       code=$(curl -s -H "$TH" -o /dev/null -w '%{http_code}' "$BAO_ADDR/v1/$KV_MOUNT/data/$S3_PATH")
       if [ "$code" = "200" ]; then

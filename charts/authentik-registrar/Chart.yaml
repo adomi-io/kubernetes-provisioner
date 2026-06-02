@@ -1,0 +1,5 @@
+apiVersion: v2
+name: authentik-registrar
+description: Registers apps (OAuth2 provider + application) in Authentik and stores their client credentials in OpenBao
+type: application
+version: 0.1.0
