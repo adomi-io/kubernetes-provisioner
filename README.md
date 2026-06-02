@@ -99,6 +99,35 @@ docker run --rm -it \
   apply
 ```
 
+### Running on k3s
+
+k3s ships its own Traefik (in `kube-system`) and a built-in load balancer, **ServiceLB**. This repo installs and manages its *own*
+Traefik, and the two collide: both claim the cluster-wide `traefik` `IngressClass`, and both try to bind ports 80/443 - so one ends
+up stuck `Pending`. Cloud clusters (DigitalOcean and the like) don't preinstall an ingress, which is why you only hit this on k3s.
+
+The fix is to disable **only** k3s's bundled Traefik. Keep ServiceLB - that's what gives our Traefik an external IP on bare metal
+(the node's own IP), the same role the cloud load balancer plays on DigitalOcean.
+
+On a fresh node, disable it at install:
+
+```bash
+curl -fsSL https://get.k3s.io | sh -s - --disable=traefik
+```
+
+On a node that's already running, make it persistent and restart - k3s then uninstalls the bundled Traefik:
+
+```bash
+# /etc/rancher/k3s/config.yaml
+disable:
+  - traefik
+
+# then apply it:
+sudo systemctl restart k3s
+```
+
+Now `helmfile apply` as usual: our Traefik takes the `traefik` `IngressClass`, ServiceLB assigns it the node's IP (point your DNS
+there), and the install behaves exactly like it does on a cloud provider.
+
 # Layout
 
 ```
