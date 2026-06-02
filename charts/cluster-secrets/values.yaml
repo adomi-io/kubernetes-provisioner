@@ -8,3 +8,4 @@ openbao:
   authentikSecretPath: authentik
   argoWorkflowsSecretPath: argo-workflows
 s3SecretPath: s3
+argoWorkflowsSso: false

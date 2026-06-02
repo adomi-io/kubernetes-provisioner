@@ -1,10 +1,9 @@
-# Argo Workflows runs jobs and pipelines, at argo.<domain>. Comes up near the end
-# (wave 2), once ingress and the certificate issuer it needs are ready.
+# Argo Workflows runs jobs and pipelines, at argo.<domain>. Comes up near the end,
+# once ingress and the certificate issuer it needs are ready.
 #
-# The UI is gated by Authentik single sign-on: you log in through Authentik, and
-# your Authentik group decides whether you're an admin or read-only. The client
-# secret comes from OpenBao via the argo-workflows-sso Secret. The one-time Authentik
-# setup is in the README's Secrets section.
+# Runs in "server" auth mode by default. Set argoWorkflowsSso=true to log in
+# through Authentik instead - that needs a one-time Authentik OAuth app and the
+# argo-workflows-sso secret in OpenBao (see the README's Secrets section).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -23,12 +22,11 @@ spec:
     helm:
       valuesObject:
         server:
-          # Log in through Authentik (OIDC) instead of running open.
+{{- if .Values.argoWorkflowsSso }}
+          # Log in through Authentik (OIDC). Roles come from Authentik groups.
           authModes:
             - sso
           sso:
-            # Authentik's OIDC endpoint for this app. The trailing "argo-workflows"
-            # is the application slug you create in Authentik.
             issuer: https://auth.{{ .Values.domain }}/application/o/argo-workflows/
             clientId:
               name: argo-workflows-sso
@@ -37,7 +35,6 @@ spec:
               name: argo-workflows-sso
               key: client-secret
             redirectUrl: https://argo.{{ .Values.domain }}/oauth2/callback
-            # "groups" lets Authentik tell Argo which group you're in, for roles below.
             scopes:
               - openid
               - profile
@@ -46,6 +43,10 @@ spec:
             rbac:
               enabled: true
             sessionExpiry: 10h
+{{- else }}
+          authModes:
+            - server
+{{- end }}
           ingress:
             enabled: true
             ingressClassName: {{ .Values.ingressClass }}
