@@ -128,6 +128,24 @@ sudo systemctl restart k3s
 Now `helmfile apply` as usual: our Traefik takes the `traefik` `IngressClass`, ServiceLB assigns it the node's IP (point your DNS
 there), and the install behaves exactly like it does on a cloud provider.
 
+**Raise the node's inotify limits.** Running the whole platform on one node means a lot of controllers (Argo CD, Authentik,
+OpenBao, cert-manager, JuiceFS, ...), each watching files via inotify. The kernel default (`fs.inotify.max_user_instances` is often
+**128**) runs out, and pods crash with `too many open files` / `failed to create fsnotify watcher` (the JuiceFS CSI controller is
+usually the first to hit it). Bump the limits on the node:
+
+```bash
+# /etc/sysctl.d/99-inotify.conf
+fs.inotify.max_user_instances=512
+fs.inotify.max_user_watches=1048576
+```
+
+```bash
+sudo sysctl --system   # apply now; persists across reboots
+```
+
+This isn't k3s-specific - any single-node cluster running everything at once will need it - but it's where you'll most likely meet
+it. If a pod already crash-looped on this, delete it after raising the limits and Argo CD recreates it.
+
 # Layout
 
 ```
