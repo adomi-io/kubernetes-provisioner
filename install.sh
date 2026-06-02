@@ -63,7 +63,7 @@ dl_file()   { if have curl; then curl -fsSL -o "$2" "$1"; elif have wget; then w
 
 ensure_kubectl() {
   have kubectl && return 0
-  dir="$(bindir)"; say "installing kubectl -> $dir"
+  dir="$BIN_DIR"; say "installing kubectl -> $dir"
   ver="$(dl_stdout https://dl.k8s.io/release/stable.txt)"
   dl_file "https://dl.k8s.io/release/${ver}/bin/${OS}/${ARCH}/kubectl" "$dir/kubectl"
   chmod +x "$dir/kubectl"
@@ -71,7 +71,7 @@ ensure_kubectl() {
 
 ensure_helm() {
   have helm && return 0
-  dir="$(bindir)"; say "installing helm ${HELM_VERSION} -> $dir"
+  dir="$BIN_DIR"; say "installing helm ${HELM_VERSION} -> $dir"
   dl_file "https://get.helm.sh/helm-${HELM_VERSION}-${OS}-${ARCH}.tar.gz" /tmp/helm.tgz
   tar -xzf /tmp/helm.tgz -C /tmp "${OS}-${ARCH}/helm"
   mv "/tmp/${OS}-${ARCH}/helm" "$dir/helm"; chmod +x "$dir/helm"
@@ -80,7 +80,7 @@ ensure_helm() {
 
 ensure_helmfile() {
   have helmfile && return 0
-  dir="$(bindir)"; say "installing helmfile ${HELMFILE_VERSION} -> $dir"
+  dir="$BIN_DIR"; say "installing helmfile ${HELMFILE_VERSION} -> $dir"
   dl_file "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_${OS}_${ARCH}.tar.gz" /tmp/helmfile.tgz
   tar -xzf /tmp/helmfile.tgz -C /tmp helmfile
   mv /tmp/helmfile "$dir/helmfile"; chmod +x "$dir/helmfile"; rm -f /tmp/helmfile.tgz
@@ -89,8 +89,11 @@ ensure_helmfile() {
 ensure_diff_plugin() {
   # helmfile apply renders diffs through the helm-diff plugin.
   helm plugin list 2>/dev/null | grep -qi '^diff' && return 0
+  # `helm plugin install <git url>` clones the plugin, so it needs git.
+  have git || { warn "git not found - skipping helm-diff; install git, then: helm plugin install https://github.com/databus23/helm-diff --verify=false"; return 0; }
   say "installing helm-diff plugin"
-  helm plugin install https://github.com/databus23/helm-diff --verify=false >/dev/null 2>&1 \
+  # Don't swallow the output - if it fails, the reason (network, git, etc.) is the useful bit.
+  helm plugin install https://github.com/databus23/helm-diff --verify=false \
     || warn "could not install helm-diff automatically; run: helm plugin install https://github.com/databus23/helm-diff --verify=false"
 }
 
@@ -132,10 +135,20 @@ main() {
   # GIT_*, BAO_*). config.yaml.gotmpl reads them as environment variables.
   [ -f .env ] && { say "loading .env"; set -a; . ./.env; set +a; }
 
+  # Where we install tools (/usr/local/bin if writable, else ~/.local/bin). Put it
+  # on PATH for this process so the tools we install below - and the final
+  # `exec helmfile` - resolve even when that dir isn't on the user's PATH yet.
+  BIN_DIR="$(bindir)"
+  case ":$PATH:" in
+    *":$BIN_DIR:"*) ;;
+    *) export PATH="$BIN_DIR:$PATH"; PATH_HINT="$BIN_DIR" ;;
+  esac
+
   ensure_kubectl
   ensure_helm
   ensure_helmfile
   ensure_diff_plugin
+  [ -n "${PATH_HINT:-}" ] && warn "tools installed to $PATH_HINT - add it to your PATH (e.g. in ~/.profile) to use them in new shells"
 
   # If we're already inside a checkout of this repo (and INSTALL_DIR wasn't set
   # explicitly), use it as-is instead of cloning a copy of the repo into itself.
