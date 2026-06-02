@@ -17,6 +17,15 @@ spec:
     repoURL: {{ .Values.charts.juicefsCsiDriver.repoURL | quote }}
     chart: {{ .Values.charts.juicefsCsiDriver.chart | quote }}
     targetRevision: {{ .Values.charts.juicefsCsiDriver.version | quote }}
+    helm:
+      valuesObject:
+        controller:
+          # One controller replica. The chart defaults to 2 for HA, but on a
+          # single-node cluster both land on the same node and mount the same
+          # hostPath dirs (/var/lib/juicefs/...), so the second crash-loops
+          # (juicefs-plugin exits 1). HA across one node buys nothing. Bump to 2
+          # only on a multi-node cluster, where replicas land on different hosts.
+          replicas: 1
   destination:
     server: https://kubernetes.default.svc
     namespace: juicefs-system
