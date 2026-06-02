@@ -47,6 +47,7 @@ releases:
         ingressClass: {{ .Values.ingressClass }}
         clusterIssuer: {{ .Values.clusterIssuer }}
         openbao:
+          unsealMode: {{ .Values.openbao.unsealMode }}
           address: {{ .Values.openbao.address }}
           kvMount: {{ .Values.openbao.kvMount }}
           kubernetesAuthMountPath: {{ .Values.openbao.kubernetesAuthMountPath }}

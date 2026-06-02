@@ -1,0 +1,39 @@
+# Brings OpenBao up hands-off after `helmfile apply`. A small reconciler that
+# initialises OpenBao, keeps it unsealed (in kubernetes mode), enables the KV
+# store + Kubernetes auth + the external-secrets policy/role, and seeds
+# Authentik's secret_key + DB password (generated, only if absent).
+#
+# Runs in wave 3, after OpenBao (wave 2) and before the apps that consume secrets.
+# It never re-initialises an initialised OpenBao and never overwrites a secret.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openbao-bootstrap
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.gitRepoURL | quote }}
+    targetRevision: {{ .Values.gitTargetRevision | quote }}
+    path: charts/openbao-bootstrap
+    helm:
+      valuesObject:
+        baoAddr: {{ .Values.openbao.address | quote }}
+        unsealMode: {{ .Values.openbao.unsealMode | quote }}
+        kvMount: {{ .Values.openbao.kvMount | quote }}
+        kubernetesAuthMountPath: {{ .Values.openbao.kubernetesAuthMountPath | quote }}
+        kubernetesAuthRole: {{ .Values.openbao.kubernetesAuthRole | quote }}
+        authentikSecretPath: {{ .Values.openbao.authentikSecretPath | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openbao
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

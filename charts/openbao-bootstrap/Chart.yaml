@@ -1,0 +1,5 @@
+apiVersion: v2
+name: openbao-bootstrap
+description: Initialises, unseals, configures, and seeds the in-cluster OpenBao
+type: application
+version: 0.1.0

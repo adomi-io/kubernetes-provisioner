@@ -31,8 +31,8 @@ helmfile apply
         └─ Argo CD brings up everything else, in order:
              cert-manager · external-secrets
              cluster-issuers · traefik · cloudnative-pg · rabbitmq · juicefs
-             openbao            (then you unseal it - see Secrets)
-             cluster-secrets
+             openbao
+             openbao-bootstrap · cluster-secrets   (init/unseal/seed OpenBao, no touch)
              authentik · argo-workflows
 ```
 
@@ -110,6 +110,7 @@ charts/
   argocd-root/                  # the root app that starts it all
   cluster-issuers/              # the Let's Encrypt issuers
   cluster-secrets/              # the OpenBao connection + which secrets to pull
+  openbao-bootstrap/            # reconciler that inits/unseals/seeds OpenBao
   rabbitmq-cluster-operator/    # the RabbitMQ operator
 argocd/                         # everything Argo CD installs
   values.yaml                   # versions, OpenBao settings, and what's passed down from config
@@ -134,6 +135,8 @@ cp .env.example .env     # then fill it in
 | `ACME_EMAIL` | Let's Encrypt registers your certs under this | `you@example.com` |
 | `GIT_REPO_URL` | the repo Argo CD reads the platform from | this repo |
 | `GIT_TARGET_REVISION` | the branch/tag Argo CD tracks | `main` |
+| `BAO_UNSEAL_MODE` | `kubernetes` (self-managed, no cloud) or `kms` (auto-unseal via cloud KMS) | `kubernetes` |
+| `BAO_SEAL_CONFIG` | HCL `seal` stanza for `kms` mode (see Secrets) | _(empty)_ |
 | `BAO_ADDR` | OpenBao address (defaults to the in-cluster one this installs) | `http://openbao.openbao.svc.cluster.local:8200` |
 | `BAO_KV_MOUNT` | the KV v2 mount holding your secrets | `secret` |
 | `BAO_KUBERNETES_AUTH_MOUNT` | OpenBao's Kubernetes auth mount path | `kubernetes` |
@@ -174,85 +177,60 @@ component needs them. Nothing secret is ever committed - only a pointer to where
 The flow is:
 
 1. **`openbao`** runs the secrets store (standalone, on a PVC, so secrets persist).
-2. **`external-secrets`** installs the operator that talks to it.
-3. **`cluster-secrets`** declares where each secret lives, and the operator writes it into a normal `Secret` (e.g. `authentik-secrets`).
-4. The component reads that `Secret` - Authentik gets its signing key and database password from it.
+2. **`openbao-bootstrap`** initialises, unseals, and configures OpenBao and seeds the platform's secrets - automatically (below).
+3. **`external-secrets`** installs the operator that talks to OpenBao.
+4. **`cluster-secrets`** declares where each secret lives, and the operator writes it into a normal `Secret` (e.g. `authentik-secrets`).
+5. The component reads that `Secret` - Authentik gets its signing key and database password from it.
 
 The operator logs in with its own cluster identity, so no token is stored anywhere. OpenBao is API-compatible with Vault, so
 External Secrets talks to it through its `vault` provider.
 
-### Unseal and set up OpenBao (one time)
+### It sets itself up
 
-OpenBao comes up **sealed** on first boot, and the bootstrap waits there until you initialise and unseal it. Open a shell to the
-pod:
+You don't run any `bao` commands. The **`openbao-bootstrap`** reconciler handles everything hands-off after `helmfile apply`: it
+runs `operator init`, keeps OpenBao unsealed, enables the KV store + Kubernetes auth + a read-only policy and role for External
+Secrets, and seeds Authentik's `secret_key` + database password as randomly-generated values. It's idempotent - it never
+re-initialises an initialised OpenBao and never overwrites a secret that already exists.
 
-```bash
-kubectl -n openbao exec -it openbao-0 -- sh
-```
+### Unsealing: pick a mode
 
-```bash
-# 1. Initialise. Prints 5 unseal keys + a root token - SAVE THEM SOMEWHERE SAFE.
-#    They are shown once and are the only way back in.
-bao operator init
+OpenBao encrypts everything at rest and boots **sealed** - it needs an unlock key to start serving. `BAO_UNSEAL_MODE` chooses where
+that key lives:
 
-# 2. Unseal: run this 3 times, each with a DIFFERENT key (3 of 5 is the threshold).
-#    Pass the key as an argument - the hidden prompt is unreliable over kubectl exec.
-bao operator unseal <unseal-key-1>
-bao operator unseal <unseal-key-2>
-bao operator unseal <unseal-key-3>
+- **`kubernetes`** (default) - no cloud needed (works anywhere, e.g. **DigitalOcean**, which has no KMS). The unseal keys are kept
+  in a cluster Secret and the reconciler unseals OpenBao for you, including after restarts. Nothing to set - it's the default.
 
-# 3. Log in with the root token, then turn on a KV store, Kubernetes auth, and a
-#    read-only policy for the operator.
-bao login <root-token>
-bao secrets enable -path=secret kv-v2
-bao auth enable kubernetes
-bao write auth/kubernetes/config kubernetes_host="https://kubernetes.default.svc"
-bao policy write external-secrets - <<'EOF'
-path "secret/data/*"      { capabilities = ["read"] }
-path "secret/metadata/*"  { capabilities = ["read"] }
-EOF
-bao write auth/kubernetes/role/external-secrets \
-  bound_service_account_names=external-secrets \
-  bound_service_account_namespaces=external-secrets \
-  policies=external-secrets ttl=1h
+  > [!WARNING]
+  > In `kubernetes` mode the unseal keys live in the `openbao-keys` Secret, so OpenBao's at-rest encryption protects you only as
+  > much as RBAC on that Secret does. That's the price of zero-touch unseal without a cloud KMS - lock down access to the `openbao`
+  > namespace accordingly.
 
-# 4. Store the secrets the platform needs. The OpenBao image has no openssl, so
-#    generate the random values from /dev/urandom.
-bao kv put secret/authentik \
-  secret_key="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64)" \
-  postgres-password="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)"
-```
+- **`kms`** - OpenBao auto-unseals from a cloud KMS (more secure, but needs a cloud that has one). Set `BAO_UNSEAL_MODE=kms` plus
+  `BAO_SEAL_CONFIG` (and a service-account annotation) for your provider:
 
-Once it's unsealed and these are in place, External Secrets syncs them and the remaining apps finish coming up. The KV mount, auth
-path, role, and secret paths are the `BAO_*` variables - keep them matching.
+  ```bash
+  # AWS KMS (key access via IRSA - the annotation is the IAM role ARN)
+  BAO_SEAL_CONFIG='seal "awskms" { region = "us-east-1" kms_key_id = "<key-id-or-arn>" }'
+  BAO_SA_ANNOTATION_KEY=eks.amazonaws.com/role-arn
+  BAO_SA_ANNOTATION_VALUE=arn:aws:iam::<account>:role/openbao-unseal
 
-> [!NOTE]
-> With manual unseal, OpenBao **re-seals whenever its pod restarts** - you'd unseal it again. For hands-off restarts, set up
-> auto-unseal below.
+  # GCP Cloud KMS (key access via Workload Identity)
+  BAO_SEAL_CONFIG='seal "gcpckms" { project = "<proj>" region = "global" key_ring = "<ring>" crypto_key = "<key>" }'
+  BAO_SA_ANNOTATION_KEY=iam.gke.io/gcp-service-account
+  BAO_SA_ANNOTATION_VALUE=openbao-unseal@<proj>.iam.gserviceaccount.com
+  ```
+  Azure Key Vault and Transit seals work the same way - see the [seal docs](https://openbao.org/docs/configuration/seal/).
 
-### Auto-unseal with a cloud KMS
+### Recovery / break-glass
 
-To have OpenBao unseal itself (and stay unsealed across restarts), point it at a cloud KMS: set `BAO_SEAL_CONFIG` to a
-[`seal` stanza](https://openbao.org/docs/configuration/seal/) for your provider, and grant OpenBao access to the key with a
-service-account annotation.
+The unseal (or recovery) keys and the root token are saved in the **`openbao-keys`** Secret in the `openbao` namespace. Copy them
+somewhere safe and restrict who can read that Secret:
 
 ```bash
-# AWS KMS (key access via IRSA - the annotation is the IAM role ARN)
-BAO_SEAL_CONFIG='seal "awskms" { region = "us-east-1" kms_key_id = "<key-id-or-arn>" }'
-BAO_SA_ANNOTATION_KEY=eks.amazonaws.com/role-arn
-BAO_SA_ANNOTATION_VALUE=arn:aws:iam::<account>:role/openbao-unseal
-
-# GCP Cloud KMS (key access via Workload Identity)
-BAO_SEAL_CONFIG='seal "gcpckms" { project = "<proj>" region = "global" key_ring = "<ring>" crypto_key = "<key>" }'
-BAO_SA_ANNOTATION_KEY=iam.gke.io/gcp-service-account
-BAO_SA_ANNOTATION_VALUE=openbao-unseal@<proj>.iam.gserviceaccount.com
+kubectl -n openbao get secret openbao-keys -o jsonpath='{.data.root-token}' | base64 -d
 ```
 
-Azure Key Vault and Transit seals work the same way - see the [seal docs](https://openbao.org/docs/configuration/seal/).
-
-With a seal set, `bao operator init` hands you **recovery keys** instead (keep them just as safe), OpenBao unseals itself, and it
-stays unsealed across restarts - so skip the `bao operator unseal` step above. The rest of the setup (auth, policy, secrets) is
-unchanged.
+For manual admin, log in with that token from the pod: `kubectl -n openbao exec -it openbao-0 -- bao login <root-token>`.
 
 ### Adding a secret for another component
 
@@ -269,12 +247,12 @@ Authentik UI:
 2. Create an **Application** for that provider with the slug `argo-workflows` (that slug is the `argo-workflows` in the issuer URL).
 3. Decide who gets in: put those people in an Authentik group, and make sure the provider includes the **groups** scope so Argo can
    see it.
-4. Store the two credentials in OpenBao, where the `argo-workflows-sso` ExternalSecret picks them up:
+4. Store the two credentials in OpenBao (run it from the pod), where the `argo-workflows-sso` ExternalSecret picks them up:
 
 ```bash
-bao kv put secret/argo-workflows \
-  client-id="<client id from authentik>" \
-  client-secret="<client secret from authentik>"
+RT=$(kubectl -n openbao get secret openbao-keys -o jsonpath='{.data.root-token}' | base64 -d)
+kubectl -n openbao exec -it openbao-0 -- sh -c \
+  "bao login $RT >/dev/null && bao kv put secret/argo-workflows client-id=<client-id> client-secret=<client-secret>"
 ```
 
 Roles map from those Authentik groups - the Argo Workflows [SSO + RBAC docs](https://argo-workflows.readthedocs.io/en/latest/argo-server-sso/)

@@ -1,0 +1,12 @@
+# Filled in by the openbao-bootstrap app (from argocd/values.yaml). Defaults are
+# placeholders so the chart renders on its own.
+
+# Image needs curl, jq, and kubectl - alpine/k8s ships all three.
+image: alpine/k8s:1.31.4
+
+baoAddr: http://openbao.openbao.svc.cluster.local:8200
+unsealMode: kubernetes     # "kubernetes" (self-managed) or "kms" (auto-unseal via cloud KMS)
+kvMount: secret
+kubernetesAuthMountPath: kubernetes
+kubernetesAuthRole: external-secrets
+authentikSecretPath: authentik

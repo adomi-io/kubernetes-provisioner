@@ -1,0 +1,27 @@
+# The reconciler needs to read/write the openbao-keys Secret (unseal material +
+# root token) in its own namespace. Nothing cluster-wide.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-bootstrap
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openbao-bootstrap
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openbao-bootstrap
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openbao-bootstrap
+subjects:
+  - kind: ServiceAccount
+    name: openbao-bootstrap

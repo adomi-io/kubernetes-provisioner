@@ -45,31 +45,18 @@ charts:
     chart: openbao
     version: 0.28.3
 
-# Secrets live in OpenBao, not in this repo. The External Secrets Operator reads
-# them from OpenBao and writes them into the cluster for you. These get set at
-# bootstrap from config.yaml.gotmpl (the BAO_* environment variables) - set them
-# there, then finish the OpenBao side (auth + policy + the secret) per the README.
+# OpenBao connection + paths. Set at bootstrap from config.yaml.gotmpl (the BAO_*
+# env vars); the README covers the OpenBao side (auth, policy, secrets).
 openbao:
-  # Connection to OpenBao. Defaults to the in-cluster OpenBao this repo installs;
-  # point it elsewhere only if you run your own.
+  # Unseal: "kubernetes" (default, self-managed) or "kms" (cloud KMS).
+  unsealMode: kubernetes
   address: http://openbao.openbao.svc.cluster.local:8200
-  # KV v2 mount that holds the secrets.
   kvMount: secret
-  # How External Secrets logs in to OpenBao: the auth mount path, and the role
-  # tied to its service account (external-secrets, in the external-secrets namespace).
   kubernetesAuthMountPath: kubernetes
   kubernetesAuthRole: external-secrets
-  # Where authentik's secrets sit in OpenBao. It expects two keys there:
-  #   secret_key         - authentik's signing key (50+ random characters)
-  #   postgres-password  - the database password
   authentikSecretPath: authentik
-  # Where Argo Workflows' SSO credentials sit in OpenBao. Two keys:
-  #   client-id      - the OAuth2 client ID from Authentik
-  #   client-secret  - the OAuth2 client secret from Authentik
   argoWorkflowsSecretPath: argo-workflows
-  # Auto-unseal. sealConfig is a base64-encoded HCL `seal` stanza for your cloud KMS
-  # (set the plain HCL via BAO_SEAL_CONFIG; see the README). Empty = manual unseal.
-  # The service-account annotation lets OpenBao reach the KMS via workload identity.
+  # Auto-unseal (kms mode): base64 HCL seal stanza + a service-account annotation.
   sealConfig: ""
   serviceAccountAnnotationKey: ""
   serviceAccountAnnotationValue: ""

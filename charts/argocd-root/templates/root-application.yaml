@@ -24,6 +24,7 @@ spec:
         gitRepoURL: {{ .Values.gitRepoURL | quote }}
         gitTargetRevision: {{ .Values.gitTargetRevision | quote }}
         openbao:
+          unsealMode: {{ .Values.openbao.unsealMode | quote }}
           address: {{ .Values.openbao.address | quote }}
           kvMount: {{ .Values.openbao.kvMount | quote }}
           kubernetesAuthMountPath: {{ .Values.openbao.kubernetesAuthMountPath | quote }}

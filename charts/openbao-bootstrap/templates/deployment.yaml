@@ -1,0 +1,49 @@
+# Runs the reconciler loop. One replica is enough - it just keeps OpenBao
+# initialised, unsealed, configured, and seeded.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openbao-bootstrap
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openbao-bootstrap
+  template:
+    metadata:
+      labels:
+        app: openbao-bootstrap
+    spec:
+      serviceAccountName: openbao-bootstrap
+      containers:
+        - name: reconciler
+          image: {{ .Values.image | quote }}
+          command: ["/bin/sh", "/scripts/bootstrap.sh"]
+          env:
+            - name: BAO_ADDR
+              value: {{ .Values.baoAddr | quote }}
+            - name: UNSEAL_MODE
+              value: {{ .Values.unsealMode | quote }}
+            - name: KV_MOUNT
+              value: {{ .Values.kvMount | quote }}
+            - name: K8S_MOUNT
+              value: {{ .Values.kubernetesAuthMountPath | quote }}
+            - name: K8S_ROLE
+              value: {{ .Values.kubernetesAuthRole | quote }}
+            - name: AUTHENTIK_PATH
+              value: {{ .Values.authentikSecretPath | quote }}
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+      volumes:
+        - name: script
+          configMap:
+            name: openbao-bootstrap

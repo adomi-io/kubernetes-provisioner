@@ -1,0 +1,79 @@
+# The reconciler loop. Talks to OpenBao over its HTTP API (curl + jq) and stores
+# unseal material in a Secret (kubectl). Safe to run forever and to re-run: it
+# never re-initialises an initialised OpenBao and never overwrites a secret that
+# already exists.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-bootstrap
+data:
+  bootstrap.sh: |
+    #!/bin/sh
+    set -u
+    log() { echo "[openbao-bootstrap] $*"; }
+    sec="openbao-keys"
+
+    while :; do
+      st=$(curl -s "$BAO_ADDR/v1/sys/seal-status" 2>/dev/null || true)
+      [ -n "$st" ] || { log "waiting for OpenBao..."; sleep 10; continue; }
+
+      # initialise once
+      if [ "$(echo "$st" | jq -r .initialized)" != "true" ]; then
+        log "initialising ($UNSEAL_MODE mode)"
+        if [ "$UNSEAL_MODE" = "kubernetes" ]; then
+          init=$(curl -s -X POST "$BAO_ADDR/v1/sys/init" -d '{"secret_shares":5,"secret_threshold":3}')
+          kf='.keys_base64[]'
+        else
+          init=$(curl -s -X POST "$BAO_ADDR/v1/sys/init" -d '{"recovery_shares":5,"recovery_threshold":3}')
+          kf='.recovery_keys_base64[]'
+        fi
+        rt=$(echo "$init" | jq -r .root_token)
+        [ -n "$rt" ] && [ "$rt" != "null" ] || { log "init failed: $init"; sleep 10; continue; }
+        set -- --from-literal=root-token="$rt"
+        i=0
+        for k in $(echo "$init" | jq -r "$kf"); do set -- "$@" --from-literal=key-$i="$k"; i=$((i+1)); done
+        kubectl -n "$POD_NAMESPACE" create secret generic "$sec" "$@" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+        log "stored unseal material in secret/$sec"
+      fi
+
+      # recover the root token from the Secret
+      rt=$(kubectl -n "$POD_NAMESPACE" get secret "$sec" -o jsonpath='{.data.root-token}' 2>/dev/null | base64 -d 2>/dev/null || true)
+      [ -n "$rt" ] || { log "no stored root token yet"; sleep 10; continue; }
+
+      # unseal (self-managed mode only; KMS auto-unseals)
+      if [ "$UNSEAL_MODE" = "kubernetes" ]; then
+        i=0
+        while [ "$(curl -s "$BAO_ADDR/v1/sys/seal-status" | jq -r .sealed)" = "true" ] && [ "$i" -lt 3 ]; do
+          k=$(kubectl -n "$POD_NAMESPACE" get secret "$sec" -o jsonpath="{.data.key-$i}" 2>/dev/null | base64 -d 2>/dev/null || true)
+          [ -n "$k" ] && curl -s -X PUT "$BAO_ADDR/v1/sys/unseal" -d "$(jq -n --arg k "$k" '{key:$k}')" >/dev/null
+          i=$((i+1))
+        done
+      fi
+
+      [ "$(curl -s "$BAO_ADDR/v1/sys/seal-status" | jq -r .sealed)" = "false" ] || { log "still sealed; retrying"; sleep 15; continue; }
+
+      # configure (all idempotent)
+      TH="X-Vault-Token: $rt"
+      curl -s -H "$TH" -X POST "$BAO_ADDR/v1/sys/mounts/$KV_MOUNT" -d '{"type":"kv","options":{"version":"2"}}' >/dev/null
+      curl -s -H "$TH" -X POST "$BAO_ADDR/v1/sys/auth/$K8S_MOUNT" -d '{"type":"kubernetes"}' >/dev/null
+      curl -s -H "$TH" -X POST "$BAO_ADDR/v1/auth/$K8S_MOUNT/config" -d '{"kubernetes_host":"https://kubernetes.default.svc"}' >/dev/null
+      pol=$(printf 'path "%s/data/*" { capabilities = ["read"] }\npath "%s/metadata/*" { capabilities = ["read"] }' "$KV_MOUNT" "$KV_MOUNT")
+      curl -s -H "$TH" -X PUT "$BAO_ADDR/v1/sys/policies/acl/external-secrets" -d "$(jq -n --arg p "$pol" '{policy:$p}')" >/dev/null
+      curl -s -H "$TH" -X POST "$BAO_ADDR/v1/auth/$K8S_MOUNT/role/$K8S_ROLE" \
+        -d '{"bound_service_account_names":"external-secrets","bound_service_account_namespaces":"external-secrets","policies":"external-secrets","ttl":"1h"}' >/dev/null
+
+      # seed Authentik's secrets, only if they are not already there
+      code=$(curl -s -H "$TH" -o /dev/null -w '%{http_code}' "$BAO_ADDR/v1/$KV_MOUNT/data/$AUTHENTIK_PATH")
+      if [ "$code" = "200" ]; then
+        log "secret/$AUTHENTIK_PATH already present; leaving it"
+      else
+        sk=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64)
+        pw=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
+        curl -s -H "$TH" -X POST "$BAO_ADDR/v1/$KV_MOUNT/data/$AUTHENTIK_PATH" \
+          -d "$(jq -n --arg sk "$sk" --arg pw "$pw" '{data:{secret_key:$sk,"postgres-password":$pw}}')" >/dev/null
+        log "seeded secret/$AUTHENTIK_PATH"
+      fi
+
+      log "reconciled OK"
+      sleep 60
+    done

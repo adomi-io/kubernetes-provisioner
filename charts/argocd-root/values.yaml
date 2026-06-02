@@ -7,6 +7,7 @@ acmeEmail: admin@example.com
 ingressClass: traefik
 clusterIssuer: letsencrypt-prod
 openbao:
+  unsealMode: kubernetes
   address: http://openbao.openbao.svc.cluster.local:8200
   kvMount: secret
   kubernetesAuthMountPath: kubernetes
