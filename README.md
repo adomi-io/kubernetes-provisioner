@@ -182,6 +182,8 @@ cp .env.example .env     # then fill it in
 |---|---|---|
 | `DOMAIN` | your domain; apps land at `<app>.<domain>` | `example.com` |
 | `ACME_EMAIL` | Let's Encrypt registers your certs under this | `you@example.com` |
+| `AUTHENTIK_ADMIN_EMAIL` | email for the initial Authentik admin (`akadmin`); prompted if unset, blank to skip | _(empty)_ |
+| `AUTHENTIK_ADMIN_PASSWORD` | password for that admin — hashed locally, read by Authentik on first boot only; never stored in git/OpenBao | _(empty)_ |
 | `GIT_REPO_URL` | the repo Argo CD reads the platform from | this repo |
 | `GIT_TARGET_REVISION` | the branch/tag Argo CD tracks | `main` |
 | `BAO_UNSEAL_MODE` | `kubernetes` (self-managed, no cloud) or `kms` (auto-unseal via cloud KMS) | `kubernetes` |
@@ -308,6 +310,23 @@ RT=$(kubectl -n openbao get secret openbao-keys -o jsonpath='{.data.root-token}'
 kubectl -n openbao exec -it openbao-0 -- sh -c \
   "bao login $RT >/dev/null && bao kv patch secret/authentik bootstrap-token=<token>"
 ```
+
+### Logging in as the admin
+
+The admin user is **`akadmin`**. The installer can set its password for you: it prompts for an admin email + password (or reads
+`AUTHENTIK_ADMIN_EMAIL` / `AUTHENTIK_ADMIN_PASSWORD`), **hashes the password locally**, and drops the hash in a one-time
+`authentik-bootstrap` Secret that Authentik reads on first boot. The plaintext never touches git, OpenBao, or even an env var on
+disk - only the one-way hash reaches the cluster, and it's ignored after the first boot. Leave the prompt blank to skip it.
+
+If you skipped it (or Authentik is already running), set the password directly - the in-browser setup flow is closed once `akadmin`
+exists (which it does, because the bootstrap token creates it):
+
+```bash
+kubectl -n authentik exec -it deploy/authentik-server -- ak changepassword akadmin
+```
+
+Then log in at `https://auth.<domain>/` as `akadmin`. You can delete the one-time secret afterward (`kubectl -n authentik delete
+secret authentik-bootstrap`); it's never read again.
 
 ### Argo Workflows single sign-on
 

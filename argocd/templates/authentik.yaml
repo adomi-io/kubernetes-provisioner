@@ -45,6 +45,23 @@ spec:
                 secretKeyRef:
                   name: authentik-secrets
                   key: bootstrap-token
+            # Optional one-time admin: the installer can prompt for an admin
+            # password + email, hash the password locally, and drop it in the
+            # authentik-bootstrap Secret. Authentik reads these on first boot only
+            # to set up akadmin, so you can log in without the web setup step.
+            # optional:true means a normal install (no Secret) is unaffected.
+            - name: AUTHENTIK_BOOTSTRAP_PASSWORD_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-bootstrap
+                  key: password-hash
+                  optional: true
+            - name: AUTHENTIK_BOOTSTRAP_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-bootstrap
+                  key: email
+                  optional: true
         postgresql:
           enabled: true
           auth:

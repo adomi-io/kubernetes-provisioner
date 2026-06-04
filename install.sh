@@ -13,6 +13,9 @@
 # Environment:
 #   DOMAIN        your domain         (e.g. example.com; prompted if unset + interactive)
 #   ACME_EMAIL    Let's Encrypt email (e.g. you@example.com; prompted if unset)
+#   AUTHENTIK_ADMIN_EMAIL     email for the initial Authentik admin (akadmin); optional
+#   AUTHENTIK_ADMIN_PASSWORD  password for that admin; optional. Hashed locally and
+#                 read by Authentik on first boot only - never stored in git/OpenBao.
 #   REPO          git repo            (default: adomi-io/kubernetes-provisioner)
 #   REF           branch/tag/sha      (default: main)
 #   INSTALL_DIR   where to checkout   (default: ./kubernetes-provisioner; when run
@@ -125,6 +128,69 @@ resolve_config() {
   [ -n "${DOMAIN:-}" ]     || die "set DOMAIN (e.g. DOMAIN=example.com), or run in a terminal to be prompted"
   [ -n "${ACME_EMAIL:-}" ] || die "set ACME_EMAIL (e.g. ACME_EMAIL=you@example.com), or run in a terminal to be prompted"
   export DOMAIN ACME_EMAIL
+
+  # Optional: pre-provision the Authentik admin so you can log in straight away,
+  # without Authentik's one-time web setup. Skippable - press Enter to skip. The
+  # login username is always "akadmin" (Authentik's built-in admin); we only set
+  # its password + email. Provide AUTHENTIK_ADMIN_EMAIL / AUTHENTIK_ADMIN_PASSWORD
+  # to skip the prompts.
+  if [ -z "${AUTHENTIK_ADMIN_PASSWORD:-}" ] && [ -r /dev/tty ]; then
+    if [ -z "${AUTHENTIK_ADMIN_EMAIL:-}" ]; then
+      printf 'Authentik admin email (Enter to skip admin setup): ' > /dev/tty
+      read -r AUTHENTIK_ADMIN_EMAIL < /dev/tty
+    fi
+    if [ -n "${AUTHENTIK_ADMIN_EMAIL:-}" ]; then
+      printf 'Authentik admin password (login user is "akadmin"): ' > /dev/tty
+      stty -echo 2>/dev/null < /dev/tty || true
+      read -r AUTHENTIK_ADMIN_PASSWORD < /dev/tty
+      stty echo 2>/dev/null < /dev/tty || true
+      printf '\n' > /dev/tty
+    fi
+  fi
+  AUTHENTIK_ADMIN_EMAIL="${AUTHENTIK_ADMIN_EMAIL:-}"
+  AUTHENTIK_ADMIN_PASSWORD="${AUTHENTIK_ADMIN_PASSWORD:-}"
+  export AUTHENTIK_ADMIN_EMAIL AUTHENTIK_ADMIN_PASSWORD
+}
+
+# Which Python to use for hashing (python3 preferred). Empty if none found.
+python_bin() { have python3 && { echo python3; return 0; }; have python && { echo python; return 0; }; return 1; }
+
+# $1 = plaintext password. Prints a Django pbkdf2_sha256 hash. The password is
+# passed to Python via the environment (not argv, and not stdin - stdin is the
+# script heredoc). The iteration count is encoded in the hash string, so Authentik
+# verifies against it; we don't have to match its default.
+django_password_hash() {
+  py="$(python_bin)" || return 1
+  AK_PW="$1" "$py" - <<'PY'
+import os, sys, hashlib, base64, secrets, string
+pw = os.environ["AK_PW"]
+salt = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+it = 600000
+dk = hashlib.pbkdf2_hmac("sha256", pw.encode(), salt.encode(), it)
+sys.stdout.write("pbkdf2_sha256$%d$%s$%s" % (it, salt, base64.b64encode(dk).decode()))
+PY
+}
+
+# If an admin password was given, hash it and drop it in a one-time Secret that
+# Authentik reads on FIRST BOOT ONLY to set up akadmin. The hash (not the
+# plaintext) is all that reaches the cluster; nothing is stored in git or OpenBao.
+# Read only once, so re-runs and later edits don't change an existing install.
+bootstrap_authentik_admin() {
+  [ -n "${AUTHENTIK_ADMIN_PASSWORD:-}" ] || return 0
+  hash="$(django_password_hash "$AUTHENTIK_ADMIN_PASSWORD" 2>/dev/null || true)"
+  if [ -z "$hash" ]; then
+    warn "need python3 (or python) to hash the admin password - skipping admin setup."
+    warn "set it later with: kubectl -n authentik exec -it deploy/authentik-server -- ak changepassword akadmin"
+    return 0
+  fi
+  kubectl create namespace authentik >/dev/null 2>&1 || true
+  set -- --from-literal=password-hash="$hash"
+  [ -n "${AUTHENTIK_ADMIN_EMAIL:-}" ] && set -- "$@" --from-literal=email="$AUTHENTIK_ADMIN_EMAIL"
+  if kubectl -n authentik create secret generic authentik-bootstrap "$@" --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1; then
+    say "provisioned Authentik admin (akadmin) via password hash (one-time secret authentik-bootstrap)"
+  else
+    warn "couldn't create the authentik-bootstrap Secret; set the password later with: kubectl -n authentik exec -it deploy/authentik-server -- ak changepassword akadmin"
+  fi
 }
 
 main() {
@@ -174,7 +240,11 @@ main() {
   # can't diff the root app. For `apply`, skip the diff on not-yet-installed
   # releases - Argo CD (which creates that CRD) then installs before the root app.
   case "${1:-}" in
-    apply) exec helmfile "$@" --skip-diff-on-install ;;
+    apply)
+      # Drop the one-time Authentik admin Secret in before Argo CD brings
+      # Authentik up (it's read on first boot). No-op if no password was given.
+      bootstrap_authentik_admin
+      exec helmfile "$@" --skip-diff-on-install ;;
     *)     exec helmfile "$@" ;;
   esac
 }
