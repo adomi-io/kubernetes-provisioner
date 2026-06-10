@@ -89,7 +89,7 @@ authentik:
 # openbao-bootstrap (controllerRole there).
 platformController:
   repoURL: https://github.com/adomi-io/adomi-platform-controller.git
-  targetRevision: main
+  targetRevision: master
   image:
     repository: ghcr.io/adomi-io/adomi-platform-controller
     # Empty defaults to the chart appVersion. Pin to a published tag in prod.
