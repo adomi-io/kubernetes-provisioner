@@ -9,9 +9,10 @@ gitRepoURL: https://github.com/adomi-io/kubernetes-provisioner.git
 gitTargetRevision: main
 
 # Argo Workflows: log in via Authentik SSO. Off = the server's built-in auth. When
-# on, the authentik-registrar (below) creates the Authentik app and stores its
+# on, the platform controller declares the Argo SSOApplication (see
+# charts/platform-resources), which creates the Authentik app and stores its
 # credentials in OpenBao for you - no manual setup.
-argoWorkflowsSso: false
+argoWorkflowsSso: true
 
 # Where each off-the-shelf component comes from, pinned to a version. The pieces
 # that live in this repo (cluster-issuers, cluster-secrets, rabbitmq) use
@@ -70,15 +71,41 @@ openbao:
   serviceAccountAnnotationKey: ""
   serviceAccountAnnotationValue: ""
 
-# Authentik registrar: registers SSO apps in Authentik (OAuth2 provider + Application)
-# and stores their client credentials in OpenBao, idempotently. The apps it manages
-# are turned on by feature flags (e.g. argoWorkflowsSso); see authentik-registrar.yaml.
-# These reference Authentik's out-of-the-box flows and self-signed signing cert.
+# Authentik references used by the platform controller: the out-of-the-box flows
+# and self-signed signing cert it binds new OAuth2 providers to. The controller
+# (adomi-platform-controller, below) reconciles Tenant/AccessGroup/SSOApplication
+# resources into Authentik using these.
 authentik:
   address: http://authentik-server.authentik.svc.cluster.local
   authorizationFlowSlug: default-provider-authorization-implicit-consent
   invalidationFlowSlug: default-provider-invalidation-flow
   signingKeyName: authentik Self-signed Certificate
+
+# adomi-platform-controller: the platform operator.
+# It reconciles Tenant, AccessGroup, and SSOApplication CRDs into Authentik and
+# OpenBao (authenticating to OpenBao with its own ServiceAccount, no static token).
+# Deployed from its own repo; the platform Tenant and SSO apps are declared in
+# charts/platform-resources. The OpenBao role/policy it uses is created by
+# openbao-bootstrap (controllerRole there).
+platformController:
+  repoURL: https://github.com/adomi-io/adomi-platform-controller.git
+  targetRevision: main
+  image:
+    repository: ghcr.io/adomi-io/adomi-platform-controller
+    # Empty defaults to the chart appVersion. Pin to a published tag in prod.
+    tag: ""
+
+# Authentik's database, run by CloudNativePG (the authentik-db app) rather than a
+# bundled Postgres. One instance suits a single node; bump to 3 for HA on a
+# multi-node cluster. Backups (continuous WAL + a daily base backup) go to the
+# object store below.
+authentikDb:
+  instances: 1
+  storageSize: 8Gi
+  backup:
+    enabled: true
+    retention: "30d"
+    schedule: "0 0 3 * * *"
 
 # Object storage - the in-cluster SeaweedFS, or an external bucket if you repoint it.
 s3:

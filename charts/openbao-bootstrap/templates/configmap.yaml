@@ -62,21 +62,33 @@ data:
       curl -s -H "$TH" -X POST "$BAO_ADDR/v1/auth/$K8S_MOUNT/role/$K8S_ROLE" \
         -d '{"bound_service_account_names":"external-secrets","bound_service_account_namespaces":"external-secrets","policies":"external-secrets","ttl":"1h"}' >/dev/null
 
-      # seed Authentik's secrets, only if they are not already there
+      # adomi-platform-controller: read the Authentik token, read/write the app
+      # credential paths it manages. The exact-match authentik rule keeps that
+      # secret read-only while the glob allows writing per-app credentials. Bound
+      # to the controller's ServiceAccount so it authenticates with no static token.
+      if [ -n "${CONTROLLER_ROLE:-}" ]; then
+        cpol=$(printf 'path "%s/data/%s" { capabilities = ["read"] }\npath "%s/data/*" { capabilities = ["create","read","update"] }' "$KV_MOUNT" "$AUTHENTIK_PATH" "$KV_MOUNT")
+        curl -s -H "$TH" -X PUT "$BAO_ADDR/v1/sys/policies/acl/$CONTROLLER_ROLE" -d "$(jq -n --arg p "$cpol" '{policy:$p}')" >/dev/null
+        curl -s -H "$TH" -X POST "$BAO_ADDR/v1/auth/$K8S_MOUNT/role/$CONTROLLER_ROLE" \
+          -d "$(jq -n --arg sa "$CONTROLLER_SA" --arg ns "$CONTROLLER_NS" --arg pol "$CONTROLLER_ROLE" \
+            '{bound_service_account_names:$sa, bound_service_account_namespaces:$ns, policies:$pol, ttl:"1h"}')" >/dev/null
+      fi
+
+      # seed Authentik's secret_key, only if it isn't already there. (The database
+      # password isn't here - CloudNativePG manages Authentik's Postgres creds.)
       code=$(curl -s -H "$TH" -o /dev/null -w '%{http_code}' "$BAO_ADDR/v1/$KV_MOUNT/data/$AUTHENTIK_PATH")
       if [ "$code" = "200" ]; then
         log "secret/$AUTHENTIK_PATH already present; leaving it"
       else
         sk=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64)
-        pw=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
         curl -s -H "$TH" -X POST "$BAO_ADDR/v1/$KV_MOUNT/data/$AUTHENTIK_PATH" \
-          -d "$(jq -n --arg sk "$sk" --arg pw "$pw" '{data:{secret_key:$sk,"postgres-password":$pw}}')" >/dev/null
+          -d "$(jq -n --arg sk "$sk" '{data:{secret_key:$sk}}')" >/dev/null
         log "seeded secret/$AUTHENTIK_PATH"
       fi
 
       # Authentik also needs an API bootstrap token: it's fed in at first boot as
-      # AUTHENTIK_BOOTSTRAP_TOKEN and reused by the authentik-registrar to call the
-      # API. Add it without clobbering the rest of the secret; generate only if absent.
+      # AUTHENTIK_BOOTSTRAP_TOKEN and reused by the adomi-platform-controller to call
+      # the API. Add it without clobbering the rest of the secret; generate only if absent.
       cur=$(curl -s -H "$TH" "$BAO_ADDR/v1/$KV_MOUNT/data/$AUTHENTIK_PATH")
       if [ "$(echo "$cur" | jq -r '.data.data["bootstrap-token"] // empty')" = "" ]; then
         bt=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 60)

@@ -11,3 +11,11 @@ kubernetesAuthMountPath: kubernetes
 kubernetesAuthRole: external-secrets
 authentikSecretPath: authentik
 s3SecretPath: s3
+
+# adomi-platform-controller: a kubernetes-auth role + write policy so the platform
+# controller can authenticate as itself (no static token) to read the Authentik
+# token and read/write the app credential paths it manages. Must match the
+# controller's ServiceAccount name and namespace.
+controllerRole: adomi-platform-controller
+controllerServiceAccount: adomi-platform-controller
+controllerNamespace: adomi-system

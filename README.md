@@ -33,8 +33,10 @@ helmfile apply
              cluster-issuers, traefik, cloudnative-pg, rabbitmq, juicefs
              openbao
              openbao-bootstrap, cluster-secrets   (init/unseal/seed OpenBao)
+             authentik-db                          (CloudNativePG Postgres for Authentik)
              authentik, argo-workflows
-             authentik-registrar                   (registers SSO apps)
+             adomi-platform-controller             (operator for Tenant/AccessGroup/SSOApplication)
+             platform-resources                    (the Tenant + SSO apps it reconciles)
 ```
 
 Helmfile only installs Argo CD and that one root app. Everything else is just a file in [`argocd/templates/`](argocd/templates/)
@@ -159,7 +161,7 @@ charts/
   cluster-issuers/              # the Let's Encrypt issuers
   cluster-secrets/              # the OpenBao connection + which secrets to pull
   openbao-bootstrap/            # reconciler that inits/unseals/seeds OpenBao
-  authentik-registrar/          # reconciler that registers SSO apps in Authentik
+  platform-resources/           # Tenant + SSOApplication declarations for the platform controller
   rabbitmq-cluster-operator/    # the RabbitMQ operator
 argocd/                         # everything Argo CD installs
   values.yaml                   # versions, OpenBao settings, and what's passed down from config
@@ -183,7 +185,7 @@ cp .env.example .env     # then fill it in
 | `DOMAIN` | your domain; apps land at `<app>.<domain>` | `example.com` |
 | `ACME_EMAIL` | Let's Encrypt registers your certs under this | `you@example.com` |
 | `AUTHENTIK_ADMIN_EMAIL` | email for the initial Authentik admin (`akadmin`); prompted if unset, blank to skip | _(empty)_ |
-| `AUTHENTIK_ADMIN_PASSWORD` | password for that admin — hashed locally, read by Authentik on first boot only; never stored in git/OpenBao | _(empty)_ |
+| `AUTHENTIK_ADMIN_PASSWORD` | password for that admin, hashed locally, read by Authentik on first boot only; never stored in git/OpenBao | _(empty)_ |
 | `GIT_REPO_URL` | the repo Argo CD reads the platform from | this repo |
 | `GIT_TARGET_REVISION` | the branch/tag Argo CD tracks | `main` |
 | `BAO_UNSEAL_MODE` | `kubernetes` (self-managed, no cloud) or `kms` (auto-unseal via cloud KMS) | `kubernetes` |
@@ -227,11 +229,11 @@ component needs them. Nothing secret is ever committed - only a pointer to where
 
 The flow is:
 
-1. **`openbao`** runs the secrets store (standalone, on a PVC, so secrets persist).
-2. **`openbao-bootstrap`** initialises, unseals, and configures OpenBao and seeds the platform's secrets - automatically (below).
-3. **`external-secrets`** installs the operator that talks to OpenBao.
-4. **`cluster-secrets`** declares where each secret lives, and the operator writes it into a normal `Secret` (e.g. `authentik-secrets`).
-5. The component reads that `Secret` - Authentik gets its signing key and database password from it.
+- **`openbao`** runs the secrets store (standalone, on a PVC, so secrets persist).
+- **`openbao-bootstrap`** initialises, unseals, and configures OpenBao and seeds the platform's secrets, automatically (below).
+- **`external-secrets`** installs the operator that talks to OpenBao.
+- **`cluster-secrets`** declares where each secret lives, and the operator writes it into a normal `Secret` (e.g. `authentik-secrets`).
+- The component reads that `Secret`. Authentik gets its signing key and database password from it.
 
 The operator logs in with its own cluster identity, so no token is stored anywhere. OpenBao is API-compatible with Vault, so
 External Secrets talks to it through its `vault` provider.
@@ -240,8 +242,9 @@ External Secrets talks to it through its `vault` provider.
 
 You don't run any `bao` commands. The **`openbao-bootstrap`** reconciler handles everything hands-off after `helmfile apply`: it
 runs `operator init`, keeps OpenBao unsealed, enables the KV store + Kubernetes auth + a read-only policy and role for External
-Secrets, and seeds Authentik's `secret_key` + database password as randomly-generated values. It's idempotent - it never
-re-initialises an initialised OpenBao and never overwrites a secret that already exists.
+Secrets, and seeds Authentik's `secret_key` + API `bootstrap-token` as randomly-generated values (Authentik's database password is
+managed by CloudNativePG, not OpenBao). It's idempotent - it never re-initialises an initialised OpenBao and never overwrites a
+secret that already exists.
 
 ### Unsealing: pick a mode
 
@@ -291,17 +294,28 @@ that comes out. Use the Authentik files as a template.
 ## Single sign-on registers itself
 
 Apps that log in through Authentik (OIDC) need an Authentik **provider** + **application** to exist, with a client ID/secret that
-the app then reads. Rather than clicking that together in the Authentik UI per app, the **`authentik-registrar`** does it for you -
-the same hands-off, idempotent style as `openbao-bootstrap`. For each app in its list it:
+the app then reads. Rather than clicking that together in the Authentik UI per app, the **`adomi-platform-controller`** reconciles it
+from Kubernetes resources - the same hands-off, idempotent style as `openbao-bootstrap`. It is an operator that lives in [`adomi-io/adomi-platform-controller`](https://github.com/adomi-io/adomi-platform-controller)
+and watches three CRDs:
 
-1. ensures a `client-id` / `client-secret` pair exists at `secret/<app>` in OpenBao - generated once, never overwritten;
-2. ensures an OAuth2 provider + Application exist in Authentik using those exact credentials (looked up by name/slug, so re-runs
-   never duplicate);
+- **`Tenant`** (`platform.adomi.io`) - an org boundary that owns a namespace and a secret path.
+- **`AccessGroup`** (`identity.adomi.io`) - a group in Authentik, used to gate who can sign in.
+- **`SSOApplication`** (`identity.adomi.io`) - an app that needs SSO.
 
-and External Secrets then delivers `secret/<app>` to the app's namespace as usual. **OpenBao is the source of truth** - Authentik is
-made to match it - so a re-run just reconciles, and a lost Authentik object is recreated with the same credentials.
+For each `SSOApplication` it:
 
-It talks to the Authentik API with a bootstrap token. `openbao-bootstrap` generates one into `secret/<authentik path>` (key
+- ensures a `client-id` / `client-secret` pair exists at `secret/<app>` in OpenBao, generated once, never overwritten;
+- ensures an OAuth2 provider + Application exist in Authentik using those exact credentials (looked up by name/slug, so re-runs
+  never duplicate);
+- restricts access to the bound access groups; and
+- writes an `ExternalSecret` that delivers the credentials into the app's namespace.
+
+**OpenBao is the source of truth** - Authentik is made to match it - so a re-run just reconciles, and a lost Authentik object is
+recreated with the same credentials. The controller is deployed by the `adomi-platform-controller` app (wave 5); the platform
+`Tenant` and the SSO apps themselves are declared in [`charts/platform-resources`](charts/platform-resources) (wave 6).
+
+It authenticates to OpenBao with its **own ServiceAccount** (OpenBao kubernetes auth) - no static token to store. `openbao-bootstrap`
+creates the role and write policy it uses. It talks to the Authentik API with a bootstrap token. `openbao-bootstrap` generates one into `secret/<authentik path>` (key
 `bootstrap-token`), and Authentik reads it at **first boot** as `AUTHENTIK_BOOTSTRAP_TOKEN` to mint an `akadmin` API token. That env
 is only read on first boot, so on a cluster where Authentik already exists, create a token for `akadmin` in the UI once and store it:
 
@@ -330,10 +344,11 @@ secret authentik-bootstrap`); it's never read again.
 
 ### Argo Workflows single sign-on
 
-Set `argoWorkflowsSso: true` in `argocd/values.yaml`. That switches the Argo Workflows server to SSO **and** adds it to the
-registrar's list, so the Authentik app and its credentials are created for you - no manual UI setup. The app lands at slug
-`argo-workflows` with redirect `https://argo.<domain>/oauth2/callback` and the `openid profile email groups` scopes (the registrar
-creates a `groups` scope mapping if one doesn't exist yet).
+Set `argoWorkflowsSso: true` in `argocd/values.yaml`. That switches the Argo Workflows server to SSO **and** declares the
+`argo-workflows` `SSOApplication` (in [`charts/platform-resources`](charts/platform-resources)), so the Authentik app and its
+credentials are created for you - no manual UI setup. The app lands at slug `argo-workflows` with redirect
+`https://argo.<domain>/oauth2/callback` and the `openid profile email groups` scopes (the controller creates a `groups` scope
+mapping if one doesn't exist yet).
 
 Who gets in is still yours to decide: put people in an Authentik group and use the Argo Workflows
 [SSO + RBAC docs](https://argo-workflows.readthedocs.io/en/latest/argo-server-sso/) to make a group admin vs read-only. Until you
@@ -341,18 +356,29 @@ set that up, everyone who logs in gets the default (read-only) access.
 
 ### Registering another app
 
-Add an entry to the registrar's `apps` list - it's built in [`argocd/templates/authentik-registrar.yaml`](argocd/templates/authentik-registrar.yaml),
-gated behind a flag the same way `argo-workflows` is:
+Declare an `SSOApplication` (and, if you want to gate who can sign in, an `AccessGroup`). Add it next to `argo-workflows` in
+[`charts/platform-resources`](charts/platform-resources):
 
 ```yaml
-apps:
-  - slug: my-app                                       # OpenBao path + Authentik slug
-    redirectUri: https://my-app.<domain>/oauth2/callback
-    scopes: [openid, profile, email, groups]
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: my-app
+  namespace: my-app
+spec:
+  tenantRef:
+    name: platform
+  displayName: My App
+  redirectUris:
+    - https://my-app.<domain>/oauth2/callback
+  scopes: [openid, profile, email, groups]
+  credentials:
+    targetSecret:
+      name: my-app-sso
 ```
 
-Then add an `ExternalSecret` (copy `argo-workflows-externalsecret.yaml`) to deliver `secret/my-app`'s `client-id`/`client-secret`
-into your app's namespace, and point the app at the resulting `Secret`.
+The controller generates the credentials, sets up Authentik, and writes the `my-app-sso` Secret into your app's namespace. Point
+the app at that Secret. No separate `ExternalSecret` needed - the controller manages it.
 
 # Usage
 

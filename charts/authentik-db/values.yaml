@@ -1,0 +1,25 @@
+# Filled in by the authentik-db app (from argocd/values.yaml). Defaults are
+# placeholders so the chart renders on its own.
+
+# The Postgres cluster CloudNativePG creates for Authentik. One instance is right
+# for a single-node cluster; bump to 3 for real HA across multiple nodes.
+instances: 1
+storageSize: 8Gi
+
+# initdb creates this database + owner role. CloudNativePG generates the owner's
+# password into the <name>-app Secret (authentik-db-app), which Authentik reads -
+# the password is operator-managed and never lands in git.
+database: authentik
+owner: authentik
+
+# Continuous WAL archiving + scheduled base backups to object storage (the
+# in-cluster SeaweedFS by default). The S3 credentials come from the
+# authentik-db-backup Secret (see cluster-secrets), sourced from OpenBao.
+backup:
+  enabled: true
+  retention: "30d"
+  schedule: "0 0 3 * * *"   # 03:00 daily - CloudNativePG cron is 6 fields (seconds first)
+  s3:
+    endpoint: http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333
+    bucket: platform
+    credentialsSecret: authentik-db-backup

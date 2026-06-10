@@ -1,0 +1,52 @@
+# A CloudNativePG-managed Postgres for Authentik. The operator (installed by the
+# cloudnative-pg app) turns this Cluster into a running Postgres, generates the
+# owner credentials into the authentik-db-app Secret, and - with backup enabled -
+# continuously archives WAL and takes scheduled base backups to object storage.
+#
+# Authentik points at the authentik-db-rw service and reads its password from
+# authentik-db-app (see the authentik app). Comes up before Authentik so the DB is
+# there when it boots.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: authentik-db
+spec:
+  instances: {{ .Values.instances }}
+  storage:
+    size: {{ .Values.storageSize | quote }}
+  bootstrap:
+    initdb:
+      database: {{ .Values.database | quote }}
+      owner: {{ .Values.owner | quote }}
+{{- if .Values.backup.enabled }}
+  backup:
+    retentionPolicy: {{ .Values.backup.retention | quote }}
+    barmanObjectStore:
+      destinationPath: {{ printf "s3://%s/authentik-db" .Values.backup.s3.bucket | quote }}
+      endpointURL: {{ .Values.backup.s3.endpoint | quote }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.backup.s3.credentialsSecret | quote }}
+          key: access-key
+        secretAccessKey:
+          name: {{ .Values.backup.s3.credentialsSecret | quote }}
+          key: secret-key
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+{{- end }}
+{{- if .Values.backup.enabled }}
+---
+# Daily base backup. WAL is archived continuously (above), so this plus the WAL
+# stream gives point-in-time recovery within the retention window.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: authentik-db
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: authentik-db
+{{- end }}

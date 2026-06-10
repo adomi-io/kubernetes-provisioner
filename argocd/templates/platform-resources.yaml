@@ -1,0 +1,40 @@
+# Declares the platform Tenant and the SSOApplications the controller reconciles.
+# Comes up in wave 6, after adomi-platform-controller (wave 5) has installed its
+# CRDs and is running. Retries cover the brief window where the CRDs are still
+# being established. argoWorkflowsSso (below) toggles the Argo Workflows SSO app.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-resources
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.gitRepoURL | quote }}
+    targetRevision: {{ .Values.gitTargetRevision | quote }}
+    path: charts/platform-resources
+    helm:
+      valuesObject:
+        domain: {{ .Values.domain | quote }}
+        argoWorkflowsSso: {{ .Values.argoWorkflowsSso }}
+        openbao:
+          argoWorkflowsSecretPath: {{ .Values.openbao.argoWorkflowsSecretPath | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: adomi-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

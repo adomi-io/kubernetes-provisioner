@@ -1,0 +1,5 @@
+apiVersion: v2
+name: authentik-db
+description: CloudNativePG-managed Postgres for Authentik, with scheduled backups to object storage
+type: application
+version: 0.1.0

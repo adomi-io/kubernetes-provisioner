@@ -1,0 +1,40 @@
+# Authentik's Postgres, managed by CloudNativePG instead of a bundled Bitnami
+# Postgres. Comes up in wave 3 - after the CNPG operator (wave 1) and the backup
+# credentials (cluster-secrets, wave 3), and before Authentik (wave 4) so the DB is
+# ready when it boots. Lives in this repo under charts/authentik-db.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: authentik-db
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.gitRepoURL | quote }}
+    targetRevision: {{ .Values.gitTargetRevision | quote }}
+    path: charts/authentik-db
+    helm:
+      valuesObject:
+        instances: {{ .Values.authentikDb.instances }}
+        storageSize: {{ .Values.authentikDb.storageSize | quote }}
+        backup:
+          enabled: {{ .Values.authentikDb.backup.enabled }}
+          retention: {{ .Values.authentikDb.backup.retention | quote }}
+          schedule: {{ .Values.authentikDb.backup.schedule | quote }}
+          s3:
+            endpoint: {{ .Values.s3.endpoint | quote }}
+            bucket: {{ .Values.s3.bucket | quote }}
+            credentialsSecret: authentik-db-backup
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: authentik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -34,6 +34,12 @@ spec:
               value: {{ .Values.authentikSecretPath | quote }}
             - name: S3_PATH
               value: {{ .Values.s3SecretPath | quote }}
+            - name: CONTROLLER_ROLE
+              value: {{ .Values.controllerRole | quote }}
+            - name: CONTROLLER_SA
+              value: {{ .Values.controllerServiceAccount | quote }}
+            - name: CONTROLLER_NS
+              value: {{ .Values.controllerNamespace | quote }}
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:

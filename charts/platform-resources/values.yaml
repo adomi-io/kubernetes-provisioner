@@ -1,0 +1,18 @@
+# Filled in by the platform-resources app (from argocd/values.yaml). Defaults are
+# placeholders so the chart renders on its own.
+
+domain: example.com
+
+# The platform's own tenant. Apps below reference it. The controller ensures the
+# tenant namespace exists; it is just a marker for platform-owned apps.
+tenant:
+  name: platform
+  namespace: platform
+
+# Argo Workflows SSO: when on, declare the SSOApplication that gives Argo its
+# Authentik OAuth app and publishes argo-workflows-sso into the argo namespace.
+argoWorkflowsSso: true
+
+openbao:
+  # Flat OpenBao path the Argo Workflows credentials live at.
+  argoWorkflowsSecretPath: argo-workflows

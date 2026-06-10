@@ -1,0 +1,27 @@
+{{- if .Values.argoWorkflowsSso }}
+# Argo Workflows SSO. The controller generates the OAuth credentials (at the
+# secret/argo-workflows path), reconciles the Authentik OAuth2 provider +
+# application with slug "argo-workflows", and publishes the argo-workflows-sso
+# Secret into the argo namespace, which the Argo server reads to log people in.
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: argo-workflows
+  namespace: argo
+spec:
+  tenantRef:
+    name: {{ .Values.tenant.name | quote }}
+  displayName: Argo Workflows
+  protocol: oauth2
+  redirectUris:
+    - https://argo.{{ .Values.domain }}/oauth2/callback
+  scopes:
+    - openid
+    - profile
+    - email
+    - groups
+  credentials:
+    openbaoPath: {{ .Values.openbao.argoWorkflowsSecretPath | quote }}
+    targetSecret:
+      name: argo-workflows-sso
+{{- end }}
