@@ -27,6 +27,7 @@ spec:
           authModes:
             - sso
           sso:
+            enabled: true
             issuer: https://auth.{{ .Values.domain }}/application/o/argo-workflows/
             clientId:
               name: argo-workflows-sso
