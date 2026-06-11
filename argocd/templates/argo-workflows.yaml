@@ -44,6 +44,23 @@ spec:
             rbac:
               enabled: true
             sessionExpiry: 10h
+          # The argo-workflows-sso secret is published by the platform controller
+          # (wave 5) once it reconciles the SSOApplication (wave 6) - later than
+          # this app (wave 4). Without this, the server boots first and
+          # CrashLoopBackOffs on "secret not found". Wait for the secret so the
+          # pod sits quietly in Init until SSO is actually ready.
+          extraInitContainers:
+            - name: wait-for-sso-secret
+              image: registry.k8s.io/kubectl:v1.33.0
+              command:
+                - sh
+                - -c
+                - |
+                  until kubectl get secret argo-workflows-sso >/dev/null 2>&1; do
+                    echo "waiting for secret/argo-workflows-sso (published by the platform controller)..."
+                    sleep 5
+                  done
+                  echo "argo-workflows-sso present; starting server."
 {{- else }}
           authModes:
             - server
