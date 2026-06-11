@@ -1,9 +1,9 @@
-# Platform resources: the Tenant and SSOApplication declarations the
+# Platform resources: the SSOApplication declarations the
 # adomi-platform-controller reconciles. Kept separate from the controller chart
 # so the operator (and its CRDs) install first, then these custom resources.
 apiVersion: v2
 name: platform-resources
-description: Tenant and SSOApplication declarations for the Adomi platform.
+description: SSOApplication declarations for the Adomi platform.
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

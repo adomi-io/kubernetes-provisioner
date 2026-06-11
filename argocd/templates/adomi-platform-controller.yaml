@@ -1,12 +1,11 @@
-# The platform control plane. Reconciles Tenant, AccessGroup, and SSOApplication
-# resources into Authentik (OAuth2 providers, applications, groups, access
-# bindings) and OpenBao (client credentials, generated once), then publishes the
-# credentials into app namespaces via External Secrets.
+# The platform control plane. Reconciles SSOApplication resources into Authentik
+# (OAuth2 providers + applications) and OpenBao (client credentials, generated
+# once), then publishes the credentials into app namespaces via External Secrets.
 #
 # Comes up in wave 5, after Authentik (wave 4) is serving and OpenBao is
 # configured (openbao-bootstrap, wave 3, also creates this controller's OpenBao
-# role + write policy). The platform Tenant and the SSO apps themselves are
-# declared by the platform-resources app (wave 6).
+# role + write policy). The SSO apps themselves are declared by the
+# platform-resources app (wave 6).
 #
 # Runs in the adomi-system namespace with the ServiceAccount the OpenBao role is
 # bound to (adomi-platform-controller). The image must be published to

@@ -9,8 +9,6 @@ metadata:
   name: argo-workflows
   namespace: argo
 spec:
-  tenantRef:
-    name: {{ .Values.tenant.name | quote }}
   displayName: Argo Workflows
   protocol: oauth2
   redirectUris:

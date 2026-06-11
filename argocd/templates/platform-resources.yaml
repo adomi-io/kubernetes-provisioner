@@ -1,4 +1,4 @@
-# Declares the platform Tenant and the SSOApplications the controller reconciles.
+# Declares the SSOApplications the controller reconciles.
 # Comes up in wave 6, after adomi-platform-controller (wave 5) has installed its
 # CRDs and is running. Retries cover the brief window where the CRDs are still
 # being established. argoWorkflowsSso (below) toggles the Argo Workflows SSO app.

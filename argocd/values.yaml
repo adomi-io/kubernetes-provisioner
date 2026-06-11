@@ -73,8 +73,8 @@ openbao:
 
 # Authentik references used by the platform controller: the out-of-the-box flows
 # and self-signed signing cert it binds new OAuth2 providers to. The controller
-# (adomi-platform-controller, below) reconciles Tenant/AccessGroup/SSOApplication
-# resources into Authentik using these.
+# (adomi-platform-controller, below) reconciles SSOApplication resources into
+# Authentik using these.
 authentik:
   address: http://authentik-server.authentik.svc.cluster.local
   authorizationFlowSlug: default-provider-authorization-implicit-consent
@@ -82,9 +82,9 @@ authentik:
   signingKeyName: authentik Self-signed Certificate
 
 # adomi-platform-controller: the platform operator.
-# It reconciles Tenant, AccessGroup, and SSOApplication CRDs into Authentik and
-# OpenBao (authenticating to OpenBao with its own ServiceAccount, no static token).
-# Deployed from its own repo; the platform Tenant and SSO apps are declared in
+# It reconciles SSOApplication CRDs into Authentik and OpenBao (authenticating to
+# OpenBao with its own ServiceAccount, no static token).
+# Deployed from its own repo; the SSO apps are declared in
 # charts/platform-resources. The OpenBao role/policy it uses is created by
 # openbao-bootstrap (controllerRole there).
 platformController:
