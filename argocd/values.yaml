@@ -32,6 +32,10 @@ charts:
     repoURL: https://argoproj.github.io/argo-helm
     chart: argo-workflows
     version: 1.0.14
+  argoEvents:
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argo-events
+    version: 2.4.21
   externalSecrets:
     repoURL: https://charts.external-secrets.io
     chart: external-secrets
@@ -100,6 +104,18 @@ authentikDb:
     enabled: true
     retention: "30d"
     schedule: "0 0 3 * * *"
+
+# Argo Events runs alongside Argo Workflows in the argo namespace (EventSources
+# receive external events, Sensors trigger Workflows). Sensors and EventSources
+# can't run without an EventBus, and the chart doesn't ship one, so the
+# argo-events app provisions a JetStream (NATS) bus named "default". jetstreamVersion
+# must match a version in the controller's config (see the chart's configs.jetstream).
+# 1 replica suits a single node; bump to 3 for HA on a multi-node cluster
+# (JetStream wants an odd count for quorum).
+argoEvents:
+  eventBus:
+    jetstreamVersion: "2.10.10"
+    replicas: 1
 
 # Object storage - the in-cluster SeaweedFS, or an external bucket if you repoint it.
 s3:

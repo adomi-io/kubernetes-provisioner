@@ -1,0 +1,56 @@
+# Argo Events - the eventing layer for Argo Workflows. EventSources ingest
+# external events (webhooks, queues, schedules); Sensors react to them and
+# trigger Workflows. It runs in the argo namespace next to Argo Workflows so
+# EventSources/Sensors show up in the Workflows UI's event-flow page (the same
+# page that was 403ing before the SSO SAs were granted read on these CRDs). The
+# controller watches all namespaces.
+#
+# Comes up at wave 3, just before Argo Workflows (wave 4). The chart ships the
+# CRDs and controller but no EventBus, and Sensors/EventSources can't run
+# without one - so we provision a JetStream (NATS) bus named "default". Its
+# sync-wave runs it after the chart's CRDs are established and the controller is
+# healthy, so the first sync doesn't race the EventBus CRD or its reconciler.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-events
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.argoEvents.repoURL | quote }}
+    chart: {{ .Values.charts.argoEvents.chart | quote }}
+    targetRevision: {{ .Values.charts.argoEvents.version | quote }}
+    helm:
+      valuesObject:
+        crds:
+          install: true
+          keep: true
+        extraObjects:
+          - apiVersion: argoproj.io/v1alpha1
+            kind: EventBus
+            metadata:
+              name: default
+              namespace: argo
+              annotations:
+                argocd.argoproj.io/sync-wave: "1"
+            spec:
+              jetstream:
+                version: {{ .Values.argoEvents.eventBus.jetstreamVersion | quote }}
+                replicas: {{ .Values.argoEvents.eventBus.replicas }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The argo-events CRDs are large, so apply them server-side (same as
+      # cert-manager and external-secrets).
+      - ServerSideApply=true

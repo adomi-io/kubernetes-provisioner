@@ -138,6 +138,64 @@ spec:
               - kind: ServiceAccount
                 name: argo-default
                 namespace: argo
+          # Cluster-scoped reads for the SSO SAs. clusterworkflowtemplates is a
+          # CLUSTER-scoped resource, so the namespaced RoleBindings above can't
+          # authorize it - the server lists them at the cluster scope on behalf
+          # of the logged-in SA and 403s. A ClusterRoleBinding is the only way
+          # to grant a cluster-scoped resource. eventsources/sensors (argo-events)
+          # are probed by the UI's event-flow page even though argo-events isn't
+          # installed here; granting read turns those 403s into harmless
+          # empty/NotFound responses.
+          - apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: argo-workflows-sso-cluster-view
+            rules:
+              - apiGroups: ["argoproj.io"]
+                resources:
+                  - clusterworkflowtemplates
+                  - clusterworkflowtemplates/finalizers
+                  - eventsources
+                  - sensors
+                verbs: ["get", "list", "watch"]
+          - apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: argo-sso-cluster-view
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: argo-workflows-sso-cluster-view
+            subjects:
+              - kind: ServiceAccount
+                name: argo-default
+                namespace: argo
+              - kind: ServiceAccount
+                name: argo-admin
+                namespace: argo
+          # Admins can also create/edit cluster workflow templates from the UI.
+          - apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: argo-workflows-sso-cluster-admin
+            rules:
+              - apiGroups: ["argoproj.io"]
+                resources:
+                  - clusterworkflowtemplates
+                  - clusterworkflowtemplates/finalizers
+                verbs: ["create", "delete", "deletecollection", "get", "list", "patch", "update", "watch"]
+          - apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: argo-admin-sso-cluster
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: argo-workflows-sso-cluster-admin
+            subjects:
+              - kind: ServiceAccount
+                name: argo-admin
+                namespace: argo
   destination:
     server: https://kubernetes.default.svc
     namespace: argo
