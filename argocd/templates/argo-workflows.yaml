@@ -71,6 +71,73 @@ spec:
               - hosts:
                   - argo.{{ .Values.domain }}
                 secretName: argo-workflows-tls
+        # SSO RBAC: Argo maps each logged-in user to a ServiceAccount via the
+        # workflows.argoproj.io/rbac-rule annotation (a CEL expr over the OIDC
+        # claims) and acts with that SA's Kubernetes RBAC. Each SA needs a token
+        # Secret (k8s 1.24+ does not auto-create them) and a RoleBinding to one of
+        # the chart's argo-workflows-{view,edit,admin} ClusterRoles.
+        extraObjects:
+          # Admins: members of the "Argo Workflows Admins" Authentik group (the
+          # platform controller ensures it exists - add members in Authentik).
+          - apiVersion: v1
+            kind: ServiceAccount
+            metadata:
+              name: argo-admin
+              namespace: argo
+              annotations:
+                workflows.argoproj.io/rbac-rule: "'Argo Workflows Admins' in groups"
+                workflows.argoproj.io/rbac-rule-precedence: "100"
+          - apiVersion: v1
+            kind: Secret
+            metadata:
+              name: argo-admin.service-account-token
+              namespace: argo
+              annotations:
+                kubernetes.io/service-account.name: argo-admin
+            type: kubernetes.io/service-account-token
+          - apiVersion: rbac.authorization.k8s.io/v1
+            kind: RoleBinding
+            metadata:
+              name: argo-admin-sso
+              namespace: argo
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: argo-workflows-admin
+            subjects:
+              - kind: ServiceAccount
+                name: argo-admin
+                namespace: argo
+          # Default: everyone else who can log in gets read-only (view).
+          - apiVersion: v1
+            kind: ServiceAccount
+            metadata:
+              name: argo-default
+              namespace: argo
+              annotations:
+                workflows.argoproj.io/rbac-rule: "true"
+                workflows.argoproj.io/rbac-rule-precedence: "0"
+          - apiVersion: v1
+            kind: Secret
+            metadata:
+              name: argo-default.service-account-token
+              namespace: argo
+              annotations:
+                kubernetes.io/service-account.name: argo-default
+            type: kubernetes.io/service-account-token
+          - apiVersion: rbac.authorization.k8s.io/v1
+            kind: RoleBinding
+            metadata:
+              name: argo-default-sso
+              namespace: argo
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: argo-workflows-view
+            subjects:
+              - kind: ServiceAccount
+                name: argo-default
+                namespace: argo
   destination:
     server: https://kubernetes.default.svc
     namespace: argo
