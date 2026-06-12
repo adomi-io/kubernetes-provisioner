@@ -1,4 +1,3 @@
-{{- if .Values.argoWorkflowsSso }}
 # Argo Workflows SSO. The controller generates the OAuth credentials (at the
 # secret/argo-workflows path), reconciles the Authentik OAuth2 provider +
 # application with slug "argo-workflows", and publishes the argo-workflows-sso
@@ -22,4 +21,3 @@ spec:
     openbaoPath: {{ .Values.openbao.argoWorkflowsSecretPath | quote }}
     targetSecret:
       name: argo-workflows-sso
-{{- end }}

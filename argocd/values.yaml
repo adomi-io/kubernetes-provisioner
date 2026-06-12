@@ -8,12 +8,6 @@ clusterIssuer: letsencrypt-prod
 gitRepoURL: https://github.com/adomi-io/kubernetes-provisioner.git
 gitTargetRevision: main
 
-# Argo Workflows: log in via Authentik SSO. Off = the server's built-in auth. When
-# on, the platform controller declares the Argo SSOApplication (see
-# charts/platform-resources), which creates the Authentik app and stores its
-# credentials in OpenBao for you - no manual setup.
-argoWorkflowsSso: true
-
 # Where each off-the-shelf component comes from, pinned to a version. The pieces
 # that live in this repo (cluster-issuers, cluster-secrets, rabbitmq) use
 # gitRepoURL instead.

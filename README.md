@@ -344,8 +344,8 @@ secret authentik-bootstrap`); it's never read again.
 
 ### Argo Workflows single sign-on
 
-Set `argoWorkflowsSso: true` in `argocd/values.yaml`. That switches the Argo Workflows server to SSO **and** declares the
-`argo-workflows` `SSOApplication` (in [`charts/platform-resources`](charts/platform-resources)), so the Authentik app and its
+Argo Workflows always logs in through Authentik. The `argo-workflows` `SSOApplication` (in
+[`charts/platform-resources`](charts/platform-resources)) declares it, so the Authentik app and its
 credentials are created for you - no manual UI setup. The app lands at slug `argo-workflows` with redirect
 `https://argo.<domain>/oauth2/callback` and the `openid profile email groups` scopes (the controller creates a `groups` scope
 mapping if one doesn't exist yet).

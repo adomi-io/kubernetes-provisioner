@@ -1,9 +1,9 @@
 # Argo Workflows runs jobs and pipelines, at argo.<domain>. Comes up near the end,
 # once ingress and the certificate issuer it needs are ready.
 #
-# Runs in "server" auth mode by default. Set argoWorkflowsSso=true to log in
-# through Authentik instead - that needs a one-time Authentik OAuth app and the
-# argo-workflows-sso secret in OpenBao (see the README's Secrets section).
+# Always logs in through Authentik (OIDC). The platform controller reconciles the
+# SSOApplication and publishes the argo-workflows-sso secret the server reads (see
+# the README's Secrets section).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -22,7 +22,6 @@ spec:
     helm:
       valuesObject:
         server:
-{{- if .Values.argoWorkflowsSso }}
           # Log in through Authentik (OIDC). Roles come from Authentik groups.
           authModes:
             - sso
@@ -51,7 +50,7 @@ spec:
           # pod sits quietly in Init until SSO is actually ready.
           extraInitContainers:
             - name: wait-for-sso-secret
-              image: registry.k8s.io/kubectl:v1.33.0
+              image: alpine/k8s:1.33.12
               command:
                 - sh
                 - -c
@@ -61,10 +60,6 @@ spec:
                     sleep 5
                   done
                   echo "argo-workflows-sso present; starting server."
-{{- else }}
-          authModes:
-            - server
-{{- end }}
           ingress:
             enabled: true
             ingressClassName: {{ .Values.ingressClass }}

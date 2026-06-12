@@ -3,10 +3,6 @@
 
 domain: example.com
 
-# Argo Workflows SSO: when on, declare the SSOApplication that gives Argo its
-# Authentik OAuth app and publishes argo-workflows-sso into the argo namespace.
-argoWorkflowsSso: true
-
 openbao:
   # Flat OpenBao path the Argo Workflows credentials live at.
   argoWorkflowsSecretPath: argo-workflows
