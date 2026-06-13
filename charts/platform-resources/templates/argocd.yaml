@@ -1,0 +1,26 @@
+# Argo CD SSO. The controller writes client-id/client-secret to OpenBao
+# secret/argocd; app-databases turns those into the argocd-sso Secret (labelled so
+# Argo CD reads it). Argo CD's server config (values/argo-cd.yaml.gotmpl) resolves
+# $argocd-sso:client-id / :client-secret and maps the "Argo CD Admins" group to
+# role:admin. Argo CD is installed before Authentik exists, so SSO stays dormant
+# until this is reconciled; the local admin account remains as break-glass.
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  displayName: Argo CD
+  protocol: oauth2
+  groups:
+    - Argo CD Admins
+  redirectUris:
+    - https://argocd.{{ .Values.domain }}/auth/callback
+    - https://argocd.{{ .Values.domain }}/pkce/verify
+  scopes:
+    - openid
+    - profile
+    - email
+    - groups
+  credentials:
+    openbaoPath: argocd

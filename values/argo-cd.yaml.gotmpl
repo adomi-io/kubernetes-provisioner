@@ -10,6 +10,30 @@ configs:
   params:
     # Traefik already handles HTTPS, so this keeps Argo CD from redirecting in a loop.
     server.insecure: true
+  cm:
+    # Public URL - Argo CD builds the OIDC callback from this.
+    url: https://argocd.{{ .Values.domain }}
+    # Log in through Authentik (OIDC). clientID/clientSecret are resolved from the
+    # argocd-sso Secret (published by the platform controller via app-databases,
+    # labelled app.kubernetes.io/part-of: argocd). Until that Secret exists - Argo CD
+    # comes up before Authentik on a fresh cluster - OIDC stays dormant and the local
+    # admin account still works; Argo CD hot-reloads once the Secret lands.
+    oidc.config: |
+      name: Authentik
+      issuer: https://auth.{{ .Values.domain }}/application/o/argocd/
+      clientID: $argocd-sso:client-id
+      clientSecret: $argocd-sso:client-secret
+      requestedScopes:
+        - openid
+        - profile
+        - email
+        - groups
+  rbac:
+    # Default everyone who logs in to read-only; the Authentik "Argo CD Admins"
+    # group gets full admin (add members in Authentik).
+    policy.default: role:readonly
+    policy.csv: |
+      g, Argo CD Admins, role:admin
 
 server:
   ingress:

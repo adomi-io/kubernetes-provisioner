@@ -85,6 +85,18 @@ externalSecrets:
     data:
       - { secretKey: access-key-id,     property: access-key }
       - { secretKey: secret-access-key, property: secret-key }
+  # Argo CD OIDC: the controller writes client-id/client-secret to secret/argocd.
+  # Argo CD resolves $argocd-sso:client-id / :client-secret from a Secret carrying
+  # the part-of label, and hot-reloads when it appears (it's installed before
+  # Authentik, so SSO stays dormant until then; local admin remains break-glass).
+  - name: argocd-sso
+    namespace: argocd
+    openbaoPath: argocd
+    labels:
+      app.kubernetes.io/part-of: argocd
+    data:
+      - { secretKey: client-id,     property: client-id }
+      - { secretKey: client-secret, property: client-secret }
   # The platform controller writes client-id/client-secret to OpenBao secret/forgejo;
   # Forgejo's oauth init job wants a Secret with keys named key / secret.
   - name: forgejo-oauth

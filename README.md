@@ -15,30 +15,29 @@ storage, message queues, single sign-on, and somewhere to run jobs. You point it
 one command.
 
 `helmfile apply` installs **Argo CD** - a GitOps engine that keeps the cluster matching what's in this repo - and a single root
-app. Argo CD brings everything else up from git on its own. After the first run you edit files, push, and Argo CD syncs - no more
-command line.
+app. Argo CD brings everything else up from git. You edit files, push, and Argo CD syncs them to the cluster.
 
 > [!NOTE]
 > **Related repositories**
 >
-> - [adomi-io/adomi-platform-controller](https://github.com/adomi-io/adomi-platform-controller) - the operator that reconciles `SSOApplication` resources into Authentik + OpenBao. Deployed for you (wave 5); lives in its own repo.
+> - [adomi-io/adomi-platform-controller](https://github.com/adomi-io/adomi-platform-controller) - the operator that reconciles `SSOApplication` resources into Authentik + OpenBao. Deployed at wave 5; lives in its own repo.
 
 # What you get
 
 This repo installs the operators and shared infrastructure; your projects create the instances they manage (a Postgres `Cluster`, a
 `RabbitmqCluster`, and so on).
 
-- 🔒 [**cert-manager**](https://cert-manager.io) - free TLS certificates from Let's Encrypt, renewed for you
+- 🔒 [**cert-manager**](https://cert-manager.io) - TLS certificates from Let's Encrypt, renewed automatically
 - 🚦 [**Traefik**](https://traefik.io) - ingress: routes traffic to your apps and terminates HTTPS
 - 🐘 [**CloudNativePG**](https://cloudnative-pg.io) - Postgres on demand, with backups to object storage
 - 🐇 [**RabbitMQ Operator**](https://www.rabbitmq.com/kubernetes/operator/operator-overview) - message queues
-- 🗄️ [**SeaweedFS**](https://github.com/seaweedfs/seaweedfs) - an in-cluster S3 object store (swap it for a real bucket when you're ready)
+- 🗄️ [**SeaweedFS**](https://github.com/seaweedfs/seaweedfs) - an in-cluster S3 object store
 - 📁 [**JuiceFS**](https://juicefs.com) - a shared POSIX filesystem, backed by object storage
 - 🔑 [**Authentik**](https://goauthentik.io) - single sign-on, one login across your apps
 - ⚙️ [**Argo Workflows**](https://argo-workflows.readthedocs.io) - runs jobs and pipelines, logged in through Authentik
 - 📡 [**Argo Events**](https://argoproj.github.io/argo-events/) - trigger workflows from webhooks, queues, and schedules
-- 🔐 [**OpenBao**](https://openbao.org) + [**External Secrets**](https://external-secrets.io) - secrets live in OpenBao (installed and seeded for you), never in this repo
-- 🤖 [**adomi-platform-controller**](https://github.com/adomi-io/adomi-platform-controller) - turns an `SSOApplication` resource into an Authentik app + credentials, hands-off
+- 🔐 [**OpenBao**](https://openbao.org) + [**External Secrets**](https://external-secrets.io) - secrets live in OpenBao and are delivered into the cluster as `Secret`s
+- 🤖 [**adomi-platform-controller**](https://github.com/adomi-io/adomi-platform-controller) - turns an `SSOApplication` resource into an Authentik app + credentials
 
 # How it works
 
@@ -72,10 +71,10 @@ You won't find these in `helmfile.yaml.gotmpl` - it only knows about Argo CD and
 
 # Platform stack
 
-On top of the infrastructure above, the repo brings up a stack of user-facing apps (wave 7), each at `<app>.<domain>`,
-wired into the platform: Postgres from CloudNativePG, object storage on SeaweedFS, single sign-on through Authentik, and
-HTTPS via Traefik + cert-manager. Stateful apps get their own Postgres `Cluster` (with backups), created together with the
-namespaces and glue Secrets by the [`app-databases`](charts/app-databases) app in wave 5.
+The platform stack is a set of user-facing apps (wave 7), each at `<app>.<domain>`, wired into the platform: Postgres from
+CloudNativePG, object storage on SeaweedFS, single sign-on through Authentik, and HTTPS via Traefik + cert-manager. Stateful
+apps get their own Postgres `Cluster` (with backups), created with the namespaces and glue Secrets by the
+[`app-databases`](charts/app-databases) app in wave 5.
 
 | App | URL | What it is | Database | SSO |
 |---|---|---|---|---|
@@ -100,15 +99,14 @@ The apps marked ✅ log in through Authentik with no extra steps: the
 `<app>-sso` Secret into the app's namespace. Add yourself to the relevant Authentik group (e.g. `Grafana Admins`,
 `Forgejo Admins`) to get in.
 
-Boot secrets that must be stable and can't live in git - Grafana's admin password, Superset's secret key, Odoo's master
-password, Harbor's admin password, LiteLLM's master key, Outline's `SECRET_KEY`/`UTILS_SECRET` - are generated **once**
-into OpenBao by `openbao-bootstrap` (its `appSecrets` list) and delivered by External Secrets, the same idempotent pattern
-as the Authentik/S3 keys.
+`openbao-bootstrap` generates these app secrets into OpenBao (its `appSecrets` list) and External Secrets delivers them:
+Grafana's admin password, Superset's secret key, Odoo's master password, Harbor's admin password, LiteLLM's master key,
+and Outline's `SECRET_KEY`/`UTILS_SECRET`.
 
-## SSO that needs a manual step
+## SSO configured by hand
 
-A few apps can't take their OIDC config from Helm, so the platform pre-provisions the Authentik app + credentials and
-leaves the last step to you:
+These apps don't take their OIDC config from Helm. Their Authentik app and credentials are provisioned; configure the OIDC
+client in each app:
 
 - **Harbor** - finish in *Administration → Configuration → Authentication → OIDC* (or the `/api/v2.0/configurations`
   API), using the `harbor-sso` Secret and issuer `https://auth.<domain>/application/o/harbor/`.
@@ -116,12 +114,6 @@ leaves the last step to you:
   provider may need Windmill Enterprise).
 - **LiteLLM** - set the `GENERIC_*` env from `litellm-sso`; LiteLLM SSO is Enterprise-licensed beyond 5 users.
 - **Odoo** - Odoo Community needs the OCA `auth_oidc` addon baked into the image, then configured in Odoo's settings.
-
-## Deferred: PostHog
-
-PostHog is intentionally **not** included. Its official Kubernetes/Helm chart is deprecated and frozen (last stable
-`30.46.0`, Jan 2024), and self-host SSO is an enterprise feature. For analytics, prefer PostHog Cloud or the single-node
-Docker `hobby` deploy until a maintained chart exists.
 
 # Getting started
 
@@ -141,7 +133,7 @@ curl -fsSL https://raw.githubusercontent.com/adomi-io/kubernetes-provisioner/mai
   | DOMAIN=example.com ACME_EMAIL=you@example.com sh -s -- apply
 ```
 
-Running it in a terminal without those? It'll just ask:
+Without those variables, the installer prompts for them:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/adomi-io/kubernetes-provisioner/main/install.sh | sh -s -- apply
@@ -155,7 +147,7 @@ Those last two are optional - press Enter to skip them - but if you fill them in
 without its web setup step. The password is hashed locally and only the hash ever reaches the cluster (see
 [Logging in as the admin](#logging-in-as-the-admin)).
 
-Want to look before you touch the cluster? Run it with no command to just download everything and stop.
+Run it with no command to download everything without applying it.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/adomi-io/kubernetes-provisioner/main/install.sh | sh
@@ -168,7 +160,7 @@ git clone https://github.com/adomi-io/kubernetes-provisioner.git
 cd kubernetes-provisioner
 
 # First run on a fresh cluster: --skip-diff-on-install lets Argo CD install its
-# Application CRD before the root app is diffed. (The curl installer adds this for you.)
+# Application CRD before the root app is diffed. (The curl installer adds this.)
 DOMAIN=example.com ACME_EMAIL=you@example.com helmfile apply --skip-diff-on-install
 ```
 
@@ -257,7 +249,7 @@ cp .env.example .env     # then fill it in
 | `BAO_AUTHENTIK_SECRET_PATH` | path to Authentik's secrets in OpenBao | `authentik` |
 | `BAO_ARGO_WORKFLOWS_SECRET_PATH` | path to Argo Workflows' SSO creds in OpenBao | `argo-workflows` |
 
-The installer loads `.env` for you. Running `helmfile` directly instead? Export them first:
+The installer loads `.env`. To run `helmfile` directly, export them first:
 
 ```bash
 export $(grep -v '^#' .env | xargs)
@@ -290,7 +282,7 @@ component needs them. Nothing secret is ever committed - only a pointer to where
 The flow is:
 
 - **`openbao`** runs the secrets store (standalone, file storage on a PVC, so secrets persist across restarts).
-- **`openbao-bootstrap`** initialises, unseals, and configures OpenBao, then seeds the platform's secrets - automatically (below).
+- **`openbao-bootstrap`** initialises, unseals, and configures OpenBao, then seeds the platform's secrets (below).
 - **`external-secrets`** installs the operator that talks to OpenBao.
 - **`cluster-secrets`** declares the `ClusterSecretStore` (the connection to OpenBao) and the `ExternalSecret`s, and the operator
   writes each one into a normal `Secret` (e.g. `authentik-secrets`, `seaweedfs-s3-config`).
@@ -300,9 +292,9 @@ The flow is:
 External Secrets logs in with its own cluster identity (Kubernetes auth), so no token is stored anywhere. OpenBao is
 API-compatible with Vault, so it talks to it through the `vault` provider.
 
-## It sets itself up
+## Bootstrap
 
-You don't run any `bao` commands. The **`openbao-bootstrap`** reconciler handles everything hands-off after `helmfile apply`:
+The **`openbao-bootstrap`** reconciler configures OpenBao after `helmfile apply`:
 
 - runs `operator init`, stores the unseal/recovery keys + root token in the `openbao-keys` Secret, and (in `kubernetes` mode) keeps
   OpenBao unsealed, including after restarts;
@@ -321,7 +313,7 @@ OpenBao encrypts everything at rest and boots **sealed** - it needs an unseal ke
 that key lives:
 
 - **`kubernetes`** (default) - no cloud KMS needed. The unseal keys are kept in the `openbao-keys` Secret and the reconciler
-  unseals OpenBao for you, including after restarts.
+  unseals OpenBao, including after restarts.
 
   > [!WARNING]
   > In `kubernetes` mode the unseal keys live in the `openbao-keys` Secret, so OpenBao's at-rest encryption is only as strong as
@@ -366,14 +358,13 @@ that comes out. Use [`authentik-externalsecret.yaml`](charts/cluster-secrets/tem
 
 # Object storage
 
-CloudNativePG backups, JuiceFS volumes, and anything else that wants a bucket need somewhere to put bytes. By default this repo
-installs **SeaweedFS** and runs its S3 gateway in-cluster, so you get object storage on a bare cluster with nothing external to set
-up. The access/secret keys are generated into OpenBao at `secret/s3` (by `openbao-bootstrap`), turned into the
-`seaweedfs-s3-config` Secret by External Secrets, and SeaweedFS authenticates with them.
+CloudNativePG backups, JuiceFS volumes, and anything else that wants a bucket need somewhere to put bytes. This repo
+installs **SeaweedFS** and runs its S3 gateway in-cluster. The access/secret keys are generated into OpenBao at `secret/s3`
+(by `openbao-bootstrap`), turned into the `seaweedfs-s3-config` Secret by External Secrets, and SeaweedFS authenticates with
+them.
 
-Ready for the real thing? Point `S3_ENDPOINT` / `S3_BUCKET` at an external bucket (DigitalOcean Spaces, AWS S3, ...) and put its
-keys in OpenBao at `secret/s3`. Everything that reads from `secret/s3` - including the Authentik database backups - follows along,
-no other changes needed.
+`S3_ENDPOINT` / `S3_BUCKET` point at an external bucket (DigitalOcean Spaces, AWS S3, ...) instead; put its keys in OpenBao
+at `secret/s3`. Everything that reads from `secret/s3`, including the Authentik database backups, uses that endpoint.
 
 # Single sign-on
 
@@ -411,7 +402,7 @@ kubectl -n openbao exec -it openbao-0 -- sh -c \
 
 ## Logging in as the admin
 
-The admin user is **`akadmin`**. The installer can set its password for you: it prompts for an admin email + password (or reads
+The admin user is **`akadmin`**. The installer can set its password: it prompts for an admin email + password (or reads
 `AUTHENTIK_ADMIN_EMAIL` / `AUTHENTIK_ADMIN_PASSWORD`), **hashes the password locally**, and drops the hash in a one-time
 `authentik-bootstrap` Secret that Authentik reads on first boot. The plaintext never touches git, OpenBao, or even an env var on
 disk - only the one-way hash reaches the cluster, and it's ignored after the first boot. Leave the prompt blank to skip it.
@@ -490,8 +481,7 @@ kubectl -n traefik get svc traefik
 ```
 
 > [!TIP]
-> After the first run, you don't go back to the command line for changes. Edit the files under `argocd/`, push, and Argo CD picks it
-> up. You only re-run `helmfile apply` to change Argo CD itself.
+> Edit the files under `argocd/`, push, and Argo CD picks up the change. Re-run `helmfile apply` to change Argo CD itself.
 
 # Adding an app
 
