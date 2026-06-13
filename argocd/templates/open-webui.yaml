@@ -1,0 +1,62 @@
+# Open WebUI (chat UI for LLMs) at chat.<domain>. Uses the CloudNativePG
+# openwebui-db cluster, logs in through Authentik (OIDC, creds from openwebui-sso),
+# and talks to the in-cluster LiteLLM proxy as its OpenAI-compatible backend.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: open-webui
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.openWebui.repoURL | quote }}
+    chart: {{ .Values.charts.openWebui.chart | quote }}
+    targetRevision: {{ .Values.charts.openWebui.version | quote }}
+    helm:
+      valuesObject:
+        # Bundled inference engines off - LiteLLM is the backend.
+        ollama:
+          enabled: false
+        pipelines:
+          enabled: false
+        extraEnvVars:
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: openwebui-db-app
+                key: uri
+          # Point at the LiteLLM proxy (OpenAI-compatible).
+          - name: OPENAI_API_BASE_URL
+            value: http://litellm.litellm.svc.cluster.local:4000/v1
+        sso:
+          enabled: true
+          enableSignup: true
+          oidc:
+            enabled: true
+            providerName: Authentik
+            providerUrl: https://auth.{{ .Values.domain }}/application/o/openwebui/.well-known/openid-configuration
+            clientExistingSecret: openwebui-sso
+            clientIdExistingSecretKey: client-id
+            clientExistingSecretKey: client-secret
+            scopes: "openid email profile"
+        ingress:
+          enabled: true
+          class: {{ .Values.ingressClass }}
+          annotations:
+            cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+          host: chat.{{ .Values.domain }}
+          tls: true
+          existingSecret: open-webui-tls
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: open-webui
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

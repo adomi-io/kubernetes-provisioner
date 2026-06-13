@@ -1,0 +1,69 @@
+# Forgejo (git forge) at git.<domain>, from the Forgejo OCI Helm chart. Uses the
+# CloudNativePG forgejo-db cluster (password from forgejo-db-app via env). Logs in
+# through Authentik (OpenID Connect): the controller writes the creds to OpenBao,
+# app-databases turns them into the forgejo-oauth Secret with the key/secret keys
+# Forgejo's oauth init job expects.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: forgejo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.forgejo.repoURL | quote }}
+    chart: {{ .Values.charts.forgejo.chart | quote }}
+    targetRevision: {{ .Values.charts.forgejo.version | quote }}
+    helm:
+      valuesObject:
+        gitea:
+          config:
+            server:
+              DOMAIN: git.{{ .Values.domain }}
+              ROOT_URL: https://git.{{ .Values.domain }}/
+            database:
+              DB_TYPE: postgres
+              HOST: forgejo-db-rw:5432
+              NAME: forgejo
+              USER: forgejo
+              SSL_MODE: require
+          # DB password injected from the CNPG-managed Secret (no value in git).
+          additionalConfigFromEnvs:
+            - name: FORGEJO__DATABASE__PASSWD
+              valueFrom:
+                secretKeyRef:
+                  name: forgejo-db-app
+                  key: password
+          # Authentik OIDC. The init job reads keys key/secret from forgejo-oauth.
+          oauth:
+            - name: authentik
+              provider: openidConnect
+              existingSecret: forgejo-oauth
+              autoDiscoverUrl: https://auth.{{ .Values.domain }}/application/o/forgejo/.well-known/openid-configuration
+        ingress:
+          enabled: true
+          className: {{ .Values.ingressClass }}
+          annotations:
+            cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+          hosts:
+            - host: git.{{ .Values.domain }}
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls:
+            - secretName: forgejo-tls
+              hosts:
+                - git.{{ .Values.domain }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: forgejo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

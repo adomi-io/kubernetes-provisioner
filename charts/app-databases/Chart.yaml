@@ -1,0 +1,5 @@
+apiVersion: v2
+name: app-databases
+description: Per-app CloudNativePG clusters plus the object-storage and SSO glue Secrets for the platform stack, in one place
+type: application
+version: 0.1.0

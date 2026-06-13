@@ -1,0 +1,75 @@
+# Odoo (ERP) at odoo.<domain>, from the adomi-helm chart (a chart path in a git
+# repo, not a Helm repo). Uses the CloudNativePG odoo-db cluster instead of the
+# chart's bundled Postgres; the owner password comes from odoo-db-app, the master
+# password from odoo-admin (seeded by openbao-bootstrap).
+#
+# SSO: Odoo Community needs the OCA auth_oidc addon baked into the image to log in
+# through Authentik, so it isn't wired here - configure it in Odoo once the addon
+# is present.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: odoo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.odoo.repoURL | quote }}
+    targetRevision: {{ .Values.charts.odoo.targetRevision | quote }}
+    path: {{ .Values.charts.odoo.path | quote }}
+    helm:
+      valuesObject:
+        postgresql:
+          enabled: false
+        database:
+          host: odoo-db-rw
+          port: 5432
+          name: odoo
+          user: odoo
+          existingSecret: odoo-db-app
+          existingSecretKey: password
+          sslmode: require
+        adminPassword:
+          existingSecret: odoo-admin
+          existingSecretKey: admin-password
+        odoo:
+          proxyMode: true
+          # Disable the web database manager in production.
+          listDb: false
+          workers: 2
+          withoutDemo: true
+        persistence:
+          enabled: true
+          size: 10Gi
+        ingress:
+          enabled: true
+          className: {{ .Values.ingressClass }}
+          annotations:
+            cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+          hosts:
+            - host: odoo.{{ .Values.domain }}
+              paths:
+                - path: /
+                  pathType: Prefix
+          longpolling:
+            enabled: true
+            paths:
+              - /websocket
+              - /longpolling
+          tls:
+            - secretName: odoo-tls
+              hosts:
+                - odoo.{{ .Values.domain }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: odoo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

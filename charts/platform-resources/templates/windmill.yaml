@@ -1,0 +1,23 @@
+# Windmill SSO. Windmill (OSS) configures OAuth at runtime in the superadmin UI
+# rather than via Helm, so this pre-provisions the Authentik provider/application
+# and publishes windmill-sso (client-id / client-secret) into the windmill
+# namespace. Add the provider under Instance Settings -> SSO/OAuth using those
+# credentials. (A fully custom/generic OIDC provider may require Windmill EE.)
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: windmill
+  namespace: windmill
+spec:
+  displayName: Windmill
+  protocol: oauth2
+  redirectUris:
+    - https://windmill.{{ .Values.domain }}/user/login_callback/authentik
+  scopes:
+    - openid
+    - profile
+    - email
+  credentials:
+    openbaoPath: windmill
+    targetSecret:
+      name: windmill-sso

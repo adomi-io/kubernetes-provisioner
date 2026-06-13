@@ -1,0 +1,78 @@
+# Loki (log storage) in the monitoring namespace, run as a single binary backed by
+# the in-cluster SeaweedFS S3 (the loki bucket). Credentials come from loki-s3
+# (AWS_* env, published by app-databases from OpenBao). No ingress - Grafana queries
+# it in-cluster as a datasource.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.loki.repoURL | quote }}
+    chart: {{ .Values.charts.loki.chart | quote }}
+    targetRevision: {{ .Values.charts.loki.version | quote }}
+    helm:
+      valuesObject:
+        deploymentMode: SingleBinary
+        loki:
+          auth_enabled: false
+          commonConfig:
+            replication_factor: 1
+          schemaConfig:
+            configs:
+              - from: "2024-04-01"
+                store: tsdb
+                object_store: s3
+                schema: v13
+                index:
+                  prefix: index_
+                  period: 24h
+          storage:
+            type: s3
+            bucketNames:
+              chunks: loki
+              ruler: loki
+              admin: loki
+            s3:
+              endpoint: {{ .Values.s3.endpoint | quote }}
+              region: us-east-1
+              s3ForcePathStyle: true
+              insecure: true
+          # S3 credentials come from the loki-s3 Secret as AWS_* env vars.
+          extraEnvFrom:
+            - secretRef:
+                name: loki-s3
+        # Single instance; zero out the scalable/distributed components and extras.
+        singleBinary:
+          replicas: 1
+        read:
+          replicas: 0
+        write:
+          replicas: 0
+        backend:
+          replicas: 0
+        chunksCache:
+          enabled: false
+        resultsCache:
+          enabled: false
+        gateway:
+          enabled: false
+        lokiCanary:
+          enabled: false
+        test:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

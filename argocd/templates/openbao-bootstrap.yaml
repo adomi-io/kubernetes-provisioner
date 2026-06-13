@@ -29,6 +29,7 @@ spec:
         kubernetesAuthRole: {{ .Values.openbao.kubernetesAuthRole | quote }}
         authentikSecretPath: {{ .Values.openbao.authentikSecretPath | quote }}
         s3SecretPath: {{ .Values.s3.secretPath | quote }}
+        appSecrets: {{ .Values.openbao.appSecrets | quote }}
   destination:
     server: https://kubernetes.default.svc
     namespace: openbao

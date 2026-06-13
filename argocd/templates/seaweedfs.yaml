@@ -46,6 +46,9 @@ spec:
           existingConfigSecret: seaweedfs-s3-config
           createBuckets:
             - name: {{ .Values.s3.bucket }}
+            {{- range .Values.s3.extraBuckets }}
+            - name: {{ . }}
+            {{- end }}
   destination:
     server: https://kubernetes.default.svc
     namespace: seaweedfs

@@ -53,6 +53,66 @@ charts:
     chart: seaweedfs
     version: 4.31.0
 
+  # ---- Platform stack (Phase 1 + Phase 3) ----------------------------------
+  # Odoo comes from the adomi-helm git repo (a chart path, not a Helm repo), so
+  # it carries path + targetRevision instead of chart + version.
+  odoo:
+    repoURL: https://github.com/adomi-io/adomi-helm.git
+    path: charts/odoo
+    targetRevision: master
+  # Grafana + Prometheus + Alertmanager in one chart.
+  kubePrometheusStack:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    version: 86.2.3
+  # Loki and Tempo moved off grafana.github.io to the community repo in 2026.
+  loki:
+    repoURL: https://grafana-community.github.io/helm-charts
+    chart: loki
+    version: 17.4.0
+  tempo:
+    repoURL: https://grafana-community.github.io/helm-charts
+    chart: tempo
+    version: 2.2.3
+  uptimeKuma:
+    repoURL: https://helm.irsigler.cloud
+    chart: uptime-kuma
+    version: 4.1.0
+  # OCI chart: repoURL is the registry path (no oci:// scheme), chart is the name.
+  forgejo:
+    repoURL: code.forgejo.org/forgejo-helm
+    chart: forgejo
+    version: 17.1.1
+  harbor:
+    repoURL: https://helm.goharbor.io
+    chart: harbor
+    version: 1.19.1
+  outline:
+    repoURL: https://community-charts.github.io/helm-charts
+    chart: outline
+    version: 0.8.1
+  windmill:
+    repoURL: https://windmill-labs.github.io/windmill-helm-charts
+    chart: windmill
+    version: 4.0.175
+  superset:
+    repoURL: https://apache.github.io/superset
+    chart: superset
+    version: 0.15.5
+  vaultwarden:
+    repoURL: https://guerzon.github.io/vaultwarden
+    chart: vaultwarden
+    version: 0.39.0
+  openWebui:
+    repoURL: https://helm.openwebui.com
+    chart: open-webui
+    version: 14.8.0
+  # OCI chart published to GHCR; tag tracks the LiteLLM app version.
+  litellm:
+    repoURL: ghcr.io/berriai
+    chart: litellm-helm
+    version: 1.88.0
+
 # OpenBao connection + paths. Set at bootstrap from config.yaml.gotmpl (the BAO_*
 # env vars); the README covers the OpenBao side (auth, policy, secrets).
 openbao:
@@ -64,6 +124,12 @@ openbao:
   kubernetesAuthRole: external-secrets
   authentikSecretPath: authentik
   argoWorkflowsSecretPath: argo-workflows
+  # Stable app secrets openbao-bootstrap generates once (only if absent), as a
+  # space-separated list of "path:key1,key2". These back the boot secrets that
+  # charts otherwise default to insecure or regenerate on every sync (Outline's
+  # SECRET_KEY/UTILS_SECRET, Odoo's master password, Grafana's admin password,
+  # Superset's secret key). External Secrets delivers them into each namespace.
+  appSecrets: "outline-app:secret-key,utils-secret odoo-app:admin-password grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey"
   # Auto-unseal (kms mode): base64 HCL seal stanza + a service-account annotation.
   sealConfig: ""
   serviceAccountAnnotationKey: ""
@@ -122,3 +188,22 @@ s3:
   endpoint: http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333
   bucket: platform
   secretPath: s3
+  # Extra buckets SeaweedFS creates for components that store objects directly
+  # (separate from CNPG backups, which share the platform bucket under a prefix).
+  extraBuckets:
+    - loki
+    - tempo
+    - harbor
+    - outline
+
+# Per-app Postgres clusters (CloudNativePG), one per stateful component, created by
+# the app-databases app. Same shape as authentikDb: backups stream to the object
+# store under s3://<bucket>/<cluster>. The list of databases/namespaces lives in
+# charts/app-databases/values.yaml; these are the shared knobs.
+appDatabases:
+  instances: 1
+  storageSize: 8Gi
+  backup:
+    enabled: true
+    retention: "30d"
+    schedule: "0 0 3 * * *"

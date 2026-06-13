@@ -1,0 +1,49 @@
+# Tempo (trace storage) in the monitoring namespace, single-binary, backed by the
+# in-cluster SeaweedFS S3 (the tempo bucket). Tempo's S3 backend reads credentials
+# from standard AWS_* env vars, supplied by the tempo-s3 Secret. No ingress -
+# Grafana queries it in-cluster as a datasource.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tempo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.tempo.repoURL | quote }}
+    chart: {{ .Values.charts.tempo.chart | quote }}
+    targetRevision: {{ .Values.charts.tempo.version | quote }}
+    helm:
+      valuesObject:
+        tempo:
+          storage:
+            trace:
+              backend: s3
+              s3:
+                bucket: tempo
+                # host:port, no scheme; SeaweedFS speaks plain HTTP (insecure).
+                endpoint: seaweedfs-s3.seaweedfs.svc.cluster.local:8333
+                insecure: true
+                forcepathstyle: true
+          # S3 credentials (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) from the Secret.
+          extraEnvFrom:
+            - secretRef:
+                name: tempo-s3
+        persistence:
+          enabled: true
+          accessModes:
+            - ReadWriteOnce
+          size: 10Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

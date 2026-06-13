@@ -1,0 +1,21 @@
+# Vaultwarden SSO. The controller publishes vaultwarden-sso (client-id /
+# client-secret) into the vaultwarden namespace; Vaultwarden reads it via its sso.*
+# block (upstream SSO support, stable as of recent releases).
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: vaultwarden
+  namespace: vaultwarden
+spec:
+  displayName: Vaultwarden
+  protocol: oauth2
+  redirectUris:
+    - https://vault.{{ .Values.domain }}/identity/connect/oidc-signin
+  scopes:
+    - openid
+    - profile
+    - email
+  credentials:
+    openbaoPath: vaultwarden
+    targetSecret:
+      name: vaultwarden-sso

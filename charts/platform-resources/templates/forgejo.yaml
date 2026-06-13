@@ -1,0 +1,24 @@
+# Forgejo SSO. The controller generates the OAuth credentials at secret/forgejo
+# and reconciles the Authentik provider/application. Forgejo's oauth init job wants
+# a Secret with keys named key/secret, so app-databases turns secret/forgejo into
+# the forgejo-oauth Secret (see charts/app-databases) rather than consuming a
+# targetSecret here.
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: forgejo
+  namespace: forgejo
+spec:
+  displayName: Forgejo
+  protocol: oauth2
+  groups:
+    - Forgejo Admins
+  redirectUris:
+    - https://git.{{ .Values.domain }}/user/oauth2/authentik/callback
+  scopes:
+    - openid
+    - profile
+    - email
+    - groups
+  credentials:
+    openbaoPath: forgejo

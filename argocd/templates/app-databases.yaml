@@ -1,0 +1,53 @@
+# The stateful glue for the platform stack: the component namespaces, one
+# CloudNativePG Cluster per stateful app (with backups to the object store), and
+# the per-namespace ExternalSecrets that deliver object-storage keys and a few
+# OAuth/app secrets. Lives in this repo under charts/app-databases.
+#
+# Comes up in wave 5 - after the CNPG operator (wave 1), OpenBao + its bootstrap
+# (wave 2/3), and the ClusterSecretStore (cluster-secrets, wave 3), and before the
+# components themselves (wave 7). Creating the namespaces here (rather than letting
+# each component's CreateNamespace do it) lets platform-resources (wave 6) publish
+# each app's <app>-sso Secret into a namespace that already exists.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-databases
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.gitRepoURL | quote }}
+    targetRevision: {{ .Values.gitTargetRevision | quote }}
+    path: charts/app-databases
+    helm:
+      valuesObject:
+        instances: {{ .Values.appDatabases.instances }}
+        storageSize: {{ .Values.appDatabases.storageSize | quote }}
+        backup:
+          enabled: {{ .Values.appDatabases.backup.enabled }}
+          retention: {{ .Values.appDatabases.backup.retention | quote }}
+          schedule: {{ .Values.appDatabases.backup.schedule | quote }}
+        s3:
+          endpoint: {{ .Values.s3.endpoint | quote }}
+          bucket: {{ .Values.s3.bucket | quote }}
+        s3SecretPath: {{ .Values.s3.secretPath | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # The Forgejo OAuth remap and Outline boot secrets read OpenBao paths that the
+    # platform controller / openbao-bootstrap may populate slightly later; retry
+    # until they resolve.
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

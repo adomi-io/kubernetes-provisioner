@@ -1,0 +1,21 @@
+# LiteLLM SSO. The controller publishes litellm-sso (client-id / client-secret)
+# into the litellm namespace; the proxy reads it as GENERIC_* env for Admin UI
+# login. Note LiteLLM SSO is free up to 5 users, Enterprise-licensed beyond that.
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: litellm
+  namespace: litellm
+spec:
+  displayName: LiteLLM
+  protocol: oauth2
+  redirectUris:
+    - https://llm.{{ .Values.domain }}/sso/callback
+  scopes:
+    - openid
+    - profile
+    - email
+  credentials:
+    openbaoPath: litellm
+    targetSecret:
+      name: litellm-sso

@@ -1,0 +1,70 @@
+# Harbor (container registry) at harbor.<domain>. Uses the CloudNativePG harbor-db
+# cluster (password from harbor-db-app), its bundled Redis, and the in-cluster
+# SeaweedFS S3 for image/chart blobs (harbor bucket, creds from harbor-s3). The
+# admin password comes from harbor-admin (seeded by openbao-bootstrap).
+#
+# SSO: Harbor can't pre-seed OIDC via Helm. The platform controller has already
+# created the Authentik app + harbor-sso Secret; finish in Administration ->
+# Configuration -> Authentication (OIDC) once Harbor is up.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.harbor.repoURL | quote }}
+    chart: {{ .Values.charts.harbor.chart | quote }}
+    targetRevision: {{ .Values.charts.harbor.version | quote }}
+    helm:
+      valuesObject:
+        externalURL: https://harbor.{{ .Values.domain }}
+        existingSecretAdminPassword: harbor-admin
+        existingSecretAdminPasswordKey: admin-password
+        expose:
+          type: ingress
+          tls:
+            enabled: true
+            certSource: secret
+            secret:
+              secretName: harbor-tls
+          ingress:
+            className: {{ .Values.ingressClass }}
+            annotations:
+              cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            hosts:
+              core: harbor.{{ .Values.domain }}
+        database:
+          type: external
+          external:
+            host: harbor-db-rw
+            port: "5432"
+            username: harbor
+            coreDatabase: harbor
+            existingSecret: harbor-db-app
+            sslmode: require
+        persistence:
+          enabled: true
+          imageChartStorage:
+            type: s3
+            s3:
+              region: us-east-1
+              bucket: harbor
+              regionendpoint: {{ .Values.s3.endpoint | quote }}
+              secure: false
+              v4auth: true
+              existingSecret: harbor-s3
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,26 @@
+# Grafana SSO. The controller generates the OAuth credentials at secret/grafana,
+# reconciles the Authentik OAuth2 provider/application, and publishes grafana-sso
+# into the monitoring namespace, which Grafana reads (generic_oauth) to log people
+# in. The two groups gate Admin/Editor roles via Grafana's role_attribute_path.
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  displayName: Grafana
+  protocol: oauth2
+  groups:
+    - Grafana Admins
+    - Grafana Editors
+  redirectUris:
+    - https://grafana.{{ .Values.domain }}/login/generic_oauth
+  scopes:
+    - openid
+    - profile
+    - email
+    - groups
+  credentials:
+    openbaoPath: grafana
+    targetSecret:
+      name: grafana-sso

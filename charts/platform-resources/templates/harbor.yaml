@@ -1,0 +1,24 @@
+# Harbor SSO. Harbor's Helm chart can't pre-seed OIDC, so this pre-provisions the
+# Authentik provider/application and publishes harbor-sso (client-id /
+# client-secret) into the harbor namespace. Finish the wiring once Harbor is up:
+# Administration -> Configuration -> Authentication -> OIDC (or the configurations
+# API), using the published credentials and issuer https://auth.<domain>/application/o/harbor/.
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: harbor
+  namespace: harbor
+spec:
+  displayName: Harbor
+  protocol: oauth2
+  redirectUris:
+    - https://harbor.{{ .Values.domain }}/c/oidc/callback
+  scopes:
+    - openid
+    - profile
+    - email
+    - groups
+  credentials:
+    openbaoPath: harbor
+    targetSecret:
+      name: harbor-sso

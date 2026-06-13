@@ -34,6 +34,8 @@ spec:
               value: {{ .Values.authentikSecretPath | quote }}
             - name: S3_PATH
               value: {{ .Values.s3SecretPath | quote }}
+            - name: APP_SECRETS
+              value: {{ .Values.appSecrets | quote }}
             - name: CONTROLLER_ROLE
               value: {{ .Values.controllerRole | quote }}
             - name: CONTROLLER_SA

@@ -63,11 +63,65 @@ Argo CD finishes one wave before starting the next:
 | 2 | OpenBao |
 | 3 | openbao-bootstrap, cluster-secrets, authentik-db, argo-events |
 | 4 | SeaweedFS, Authentik, Argo Workflows |
-| 5 | adomi-platform-controller |
-| 6 | platform-resources |
+| 5 | adomi-platform-controller, app-databases (per-app Postgres + glue Secrets) |
+| 6 | platform-resources (the `SSOApplication`s) |
+| 7 | the [platform stack](#platform-stack) - Odoo, Grafana/Prometheus/Alertmanager, Loki, Tempo, Uptime Kuma, Forgejo, Harbor, Outline, Windmill, Superset, Vaultwarden, Open WebUI, LiteLLM |
 
 You won't find these in `helmfile.yaml.gotmpl` - it only knows about Argo CD and the root app. Each one is a file in
 [`argocd/templates/`](argocd/templates/), and the versions and settings they share live in [`argocd/values.yaml`](argocd/values.yaml).
+
+# Platform stack
+
+On top of the infrastructure above, the repo brings up a stack of user-facing apps (wave 7), each at `<app>.<domain>`,
+wired into the platform: Postgres from CloudNativePG, object storage on SeaweedFS, single sign-on through Authentik, and
+HTTPS via Traefik + cert-manager. Stateful apps get their own Postgres `Cluster` (with backups), created together with the
+namespaces and glue Secrets by the [`app-databases`](charts/app-databases) app in wave 5.
+
+| App | URL | What it is | Database | SSO |
+|---|---|---|---|---|
+| **Odoo** | `odoo.` | ERP / business apps | CNPG | manual (needs the `auth_oidc` addon in the image) |
+| **Grafana** | `grafana.` | dashboards | - | ✅ Authentik (groups → Admin/Editor/Viewer) |
+| **Prometheus / Alertmanager** | _(in-cluster)_ | metrics + alerting | - | no ingress (no built-in auth) - port-forward or front with forward-auth |
+| **Loki** | _(datasource)_ | logs (S3-backed) | - | - |
+| **Tempo** | _(datasource)_ | traces (S3-backed) | - | - |
+| **Uptime Kuma** | `status.` | uptime / status page | - | none (no native SSO) |
+| **Forgejo** | `git.` | git forge | CNPG | ✅ Authentik (OIDC) |
+| **Harbor** | `harbor.` | container registry (S3-backed) | CNPG | manual (post-install; see below) |
+| **Outline** | `docs.` | wiki / knowledge base (S3-backed) | CNPG | ✅ Authentik (OIDC) |
+| **Windmill** | `windmill.` | workflow / script automation | CNPG | manual (UI; see below) |
+| **Superset** | `superset.` | BI / dashboards | CNPG | ✅ Authentik (OIDC) |
+| **Vaultwarden** | `vault.` | password manager | CNPG | ✅ Authentik (OIDC) |
+| **Open WebUI** | `chat.` | chat UI for LLMs | CNPG | ✅ Authentik (OIDC) |
+| **LiteLLM** | `llm.` | LLM gateway / proxy | CNPG | manual (Enterprise beyond 5 users; see below) |
+
+The apps marked ✅ log in through Authentik with no extra steps: the
+[`adomi-platform-controller`](#single-sign-on) reconciles an `SSOApplication` (in
+[`charts/platform-resources`](charts/platform-resources)), mints the OAuth credentials in OpenBao, and publishes the
+`<app>-sso` Secret into the app's namespace. Add yourself to the relevant Authentik group (e.g. `Grafana Admins`,
+`Forgejo Admins`) to get in.
+
+Boot secrets that must be stable and can't live in git - Grafana's admin password, Superset's secret key, Odoo's master
+password, Harbor's admin password, LiteLLM's master key, Outline's `SECRET_KEY`/`UTILS_SECRET` - are generated **once**
+into OpenBao by `openbao-bootstrap` (its `appSecrets` list) and delivered by External Secrets, the same idempotent pattern
+as the Authentik/S3 keys.
+
+## SSO that needs a manual step
+
+A few apps can't take their OIDC config from Helm, so the platform pre-provisions the Authentik app + credentials and
+leaves the last step to you:
+
+- **Harbor** - finish in *Administration → Configuration → Authentication → OIDC* (or the `/api/v2.0/configurations`
+  API), using the `harbor-sso` Secret and issuer `https://auth.<domain>/application/o/harbor/`.
+- **Windmill** - add the provider under *Instance Settings → SSO/OAuth* using `windmill-sso` (a fully generic OIDC
+  provider may need Windmill Enterprise).
+- **LiteLLM** - set the `GENERIC_*` env from `litellm-sso`; LiteLLM SSO is Enterprise-licensed beyond 5 users.
+- **Odoo** - Odoo Community needs the OCA `auth_oidc` addon baked into the image, then configured in Odoo's settings.
+
+## Deferred: PostHog
+
+PostHog is intentionally **not** included. Its official Kubernetes/Helm chart is deprecated and frozen (last stable
+`30.46.0`, Jan 2024), and self-host SSO is an enterprise feature. For analytics, prefer PostHog Cloud or the single-node
+Docker `hobby` deploy until a maintained chart exists.
 
 # Getting started
 

@@ -1,0 +1,77 @@
+# One CloudNativePG Cluster per stateful component, mirroring charts/authentik-db:
+# the operator turns each into a running Postgres, generates owner credentials into
+# <name>-app, and (with backup enabled) archives WAL + takes daily base backups to
+# the object store. The <name>-backup ExternalSecret supplies the S3 credentials,
+# pulled from the same OpenBao path as the object store's own keys.
+{{- $root := . }}
+{{- range .Values.databases }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace }}
+spec:
+  instances: {{ $root.Values.instances }}
+  storage:
+    size: {{ $root.Values.storageSize | quote }}
+  bootstrap:
+    initdb:
+      database: {{ .database | quote }}
+      owner: {{ .owner | quote }}
+{{- if $root.Values.backup.enabled }}
+  backup:
+    retentionPolicy: {{ $root.Values.backup.retention | quote }}
+    barmanObjectStore:
+      destinationPath: {{ printf "s3://%s/%s" $root.Values.s3.bucket .name | quote }}
+      endpointURL: {{ $root.Values.s3.endpoint | quote }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ printf "%s-backup" .name | quote }}
+          key: access-key
+        secretAccessKey:
+          name: {{ printf "%s-backup" .name | quote }}
+          key: secret-key
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+---
+# Daily base backup; WAL is archived continuously, giving point-in-time recovery
+# within the retention window.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace }}
+spec:
+  schedule: {{ $root.Values.backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: {{ .name }}
+---
+# S3 credentials CNPG uses to archive WAL + push base backups for this cluster.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ printf "%s-backup" .name }}
+  namespace: {{ .namespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: openbao
+  target:
+    name: {{ printf "%s-backup" .name }}
+    creationPolicy: Owner
+  data:
+    - secretKey: access-key
+      remoteRef:
+        key: {{ $root.Values.s3SecretPath | quote }}
+        property: access-key
+    - secretKey: secret-key
+      remoteRef:
+        key: {{ $root.Values.s3SecretPath | quote }}
+        property: secret-key
+{{- end }}
+{{- end }}

@@ -1,0 +1,13 @@
+# The namespace every platform component runs in. Created here (wave 5) so the
+# adomi-platform-controller can publish each app's <app>-sso Secret into a
+# namespace that already exists, and so the ExternalSecrets below have a home.
+# Delete=false keeps a namespace (and its data) if this app is ever pruned.
+{{- range .Values.namespaces }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ . }}
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+{{- end }}

@@ -1,0 +1,60 @@
+# LiteLLM (LLM gateway / proxy) at llm.<domain>, from the LiteLLM OCI Helm chart.
+# Uses the CloudNativePG litellm-db cluster for the proxy DB, and a stable master
+# key from litellm-masterkey (seeded by openbao-bootstrap) so it isn't regenerated
+# on every sync. Add your provider API keys via environmentSecrets and your model
+# list via proxy_config.
+#
+# SSO: the Admin UI can use Authentik via GENERIC_* env (litellm-sso is
+# pre-provisioned), but LiteLLM SSO is Enterprise-licensed beyond 5 users, so it's
+# left for you to enable.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: litellm
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.litellm.repoURL | quote }}
+    chart: {{ .Values.charts.litellm.chart | quote }}
+    targetRevision: {{ .Values.charts.litellm.version | quote }}
+    helm:
+      valuesObject:
+        masterkeySecretName: litellm-masterkey
+        masterkeySecretKey: masterkey
+        db:
+          deployStandalone: false
+          useExisting: true
+          endpoint: litellm-db-rw
+          database: litellm
+          secret:
+            name: litellm-db-app
+            usernameKey: username
+            passwordKey: password
+        ingress:
+          enabled: true
+          className: {{ .Values.ingressClass }}
+          annotations:
+            cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+          hosts:
+            - host: llm.{{ .Values.domain }}
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls:
+            - secretName: litellm-tls
+              hosts:
+                - llm.{{ .Values.domain }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: litellm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

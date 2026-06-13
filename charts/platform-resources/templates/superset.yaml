@@ -1,0 +1,21 @@
+# Superset SSO. The controller publishes superset-sso (client-id / client-secret)
+# into the superset namespace; Superset reads it from a Flask-AppBuilder OAuth
+# config override (see argocd/templates/superset.yaml).
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: superset
+  namespace: superset
+spec:
+  displayName: Superset
+  protocol: oauth2
+  redirectUris:
+    - https://superset.{{ .Values.domain }}/oauth-authorized/authentik
+  scopes:
+    - openid
+    - profile
+    - email
+  credentials:
+    openbaoPath: superset
+    targetSecret:
+      name: superset-sso

@@ -1,0 +1,95 @@
+# Grafana + Prometheus + Alertmanager (kube-prometheus-stack), in the monitoring
+# namespace. Grafana is exposed at grafana.<domain> and logs in through Authentik
+# (generic_oauth); Prometheus and Alertmanager are deliberately left cluster-internal
+# (no ingress) since they have no auth of their own - reach them with a port-forward,
+# or front them with forward-auth before exposing.
+#
+# Grafana's OAuth client id/secret come from grafana-sso (published by the platform
+# controller); its local admin password comes from grafana-admin (seeded by
+# openbao-bootstrap). Loki and Tempo are wired in as datasources.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.kubePrometheusStack.repoURL | quote }}
+    chart: {{ .Values.charts.kubePrometheusStack.chart | quote }}
+    targetRevision: {{ .Values.charts.kubePrometheusStack.version | quote }}
+    helm:
+      valuesObject:
+        grafana:
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          # OAuth credentials from the controller-published Secret, as env that
+          # grafana.ini's generic_oauth section overrides the (unset) inline values with.
+          envValueFrom:
+            GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+              secretKeyRef:
+                name: grafana-sso
+                key: client-id
+            GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+              secretKeyRef:
+                name: grafana-sso
+                key: client-secret
+          grafana.ini:
+            server:
+              root_url: https://grafana.{{ .Values.domain }}
+            auth.generic_oauth:
+              enabled: true
+              name: Authentik
+              scopes: "openid profile email groups"
+              auth_url: https://auth.{{ .Values.domain }}/application/o/authorize/
+              token_url: https://auth.{{ .Values.domain }}/application/o/token/
+              api_url: https://auth.{{ .Values.domain }}/application/o/userinfo/
+              # Authentik groups -> Grafana roles.
+              role_attribute_path: "contains(groups[*], 'Grafana Admins') && 'Admin' || contains(groups[*], 'Grafana Editors') && 'Editor' || 'Viewer'"
+              role_attribute_strict: false
+              allow_assign_grafana_admin: true
+          additionalDataSources:
+            - name: Loki
+              type: loki
+              access: proxy
+              url: http://loki.monitoring.svc.cluster.local:3100
+            - name: Tempo
+              type: tempo
+              access: proxy
+              url: http://tempo.monitoring.svc.cluster.local:3100
+          ingress:
+            enabled: true
+            ingressClassName: {{ .Values.ingressClass }}
+            annotations:
+              cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            hosts:
+              - grafana.{{ .Values.domain }}
+            path: /
+            tls:
+              - secretName: grafana-tls
+                hosts:
+                  - grafana.{{ .Values.domain }}
+        # Prometheus + Alertmanager: deployed, no public ingress (no built-in auth).
+        prometheus:
+          ingress:
+            enabled: false
+        alertmanager:
+          ingress:
+            enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The kube-prometheus-stack CRDs are large; apply them server-side.
+      - ServerSideApply=true

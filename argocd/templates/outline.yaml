@@ -1,0 +1,92 @@
+# Outline (team wiki / knowledge base) at docs.<domain>. Uses the CloudNativePG
+# outline-db cluster, the chart's bundled Redis, and the in-cluster SeaweedFS S3
+# (outline bucket, creds from outline-s3) for attachments. Its required SECRET_KEY /
+# UTILS_SECRET come from outline-secret (seeded by openbao-bootstrap).
+#
+# Outline has no local login, so OIDC is wired now: client-id/client-secret come
+# from outline-oidc (envFrom), since the chart can't take the OIDC client-id from a
+# Secret directly.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: outline
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.outline.repoURL | quote }}
+    chart: {{ .Values.charts.outline.chart | quote }}
+    targetRevision: {{ .Values.charts.outline.version | quote }}
+    helm:
+      valuesObject:
+        url: https://docs.{{ .Values.domain }}
+        postgresql:
+          enabled: false
+        externalDatabase:
+          host: outline-db-rw
+          port: 5432
+          username: outline
+          database: outline
+          existingSecret: outline-db-app
+          passwordSecretKey: password
+        redis:
+          enabled: true
+        secretKeyExternalSecret:
+          name: outline-secret
+          key: secret-key
+        utilsSecretExternalSecret:
+          name: outline-secret
+          key: utils-secret
+        fileStorage:
+          mode: s3
+          s3:
+            existingSecret: outline-s3
+            accessKeyIdSecretKey: access-key-id
+            secretAccessKeySecretKey: secret-access-key
+            bucket: outline
+            region: us-east-1
+            bucketUrl: {{ .Values.s3.endpoint | quote }}
+            forcePathStyle: true
+        auth:
+          oidc:
+            enabled: true
+            displayName: Authentik
+            authUri: https://auth.{{ .Values.domain }}/application/o/authorize/
+            tokenUri: https://auth.{{ .Values.domain }}/application/o/token/
+            userInfoUri: https://auth.{{ .Values.domain }}/application/o/userinfo/
+            usernameClaim: preferred_username
+            scopes:
+              - openid
+              - profile
+              - email
+        # OIDC_CLIENT_ID / OIDC_CLIENT_SECRET injected via envFrom (overrides the
+        # chart's blank inline values).
+        extraSecretNamesForEnvFrom:
+          - outline-oidc
+        ingress:
+          enabled: true
+          className: {{ .Values.ingressClass }}
+          annotations:
+            cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+          hosts:
+            - host: docs.{{ .Values.domain }}
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls:
+            - secretName: outline-tls
+              hosts:
+                - docs.{{ .Values.domain }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: outline
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,20 @@
+# Outline SSO. The controller writes client-id/client-secret to OpenBao
+# secret/outline; app-databases turns those into the outline-oidc Secret (env-var
+# keys) the Outline deployment loads via envFrom, since Outline's chart can't take
+# the OIDC client-id from a Secret directly.
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: outline
+  namespace: outline
+spec:
+  displayName: Outline
+  protocol: oauth2
+  redirectUris:
+    - https://docs.{{ .Values.domain }}/auth/oidc.callback
+  scopes:
+    - openid
+    - profile
+    - email
+  credentials:
+    openbaoPath: outline
