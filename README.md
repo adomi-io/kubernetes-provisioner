@@ -1,64 +1,86 @@
+> [!TIP]
+> **Want a cluster up fast?**
+>
+> Point this at an empty cluster and run one command. It grabs `kubectl`, `helm`, and `helmfile` if you're missing them, downloads this repo, and applies it.
+>
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/adomi-io/kubernetes-provisioner/main/install.sh \
+>   | DOMAIN=example.com ACME_EMAIL=you@example.com sh -s -- apply
+> ```
+
 # Adomi - Kubernetes Provisioner
 
-This sets up a fresh Kubernetes cluster with the tools most projects need: HTTPS certificates, ingress, databases, message
-queues, single sign-on, and somewhere to run jobs. You point it at an empty cluster, set your domain, and run one command.
+This turns an empty Kubernetes cluster into one you can actually build on: HTTPS certificates, ingress, Postgres, object
+storage, message queues, single sign-on, and somewhere to run jobs. You point it at a fresh cluster, give it your domain, and run
+one command.
 
-It installs **Argo CD** - a GitOps engine that keeps the cluster matching what's in this repo - and hands the rest over to it.
-From there, Argo CD brings everything else up on its own.
-
-Here's what you get:
-
-- **cert-manager** - free TLS certificates from Let's Encrypt, renewed for you
-- **Traefik** - ingress: routes traffic to your apps and handles HTTPS
-- **CloudNativePG** - Postgres databases on demand
-- **JuiceFS** - a shared POSIX filesystem, backed by object storage
-- **RabbitMQ Operator** - message queues
-- **Authentik** - single sign-on, one login across your apps
-- **Argo Workflows** - runs jobs and pipelines
-- **OpenBao + External Secrets** - secrets live in OpenBao (installed for you), never in this repo
+`helmfile apply` installs **Argo CD** - a GitOps engine that keeps the cluster matching what's in this repo - and a single root
+app. Argo CD brings everything else up from git on its own. After the first run you edit files, push, and Argo CD syncs - no more
+command line.
 
 > [!NOTE]
-> Most of these are *operators*. An operator installs into the cluster and then manages something for you - you ask for a database
-> or a queue, and it creates one and looks after it. This repo installs the operators; your own projects create the instances (a
-> Postgres `Cluster`, a `RabbitmqCluster`, and so on).
+> **Related repositories**
+>
+> - [adomi-io/adomi-platform-controller](https://github.com/adomi-io/adomi-platform-controller) - the operator that reconciles `SSOApplication` resources into Authentik + OpenBao. Deployed for you (wave 5); lives in its own repo.
 
-## How it works
+# What you get
 
-```
-helmfile apply
-  ├─ argo-cd            the GitOps engine
-  └─ argocd-root        one root app that points Argo CD at this repo
-        └─ Argo CD brings up everything else, in order:
-             cert-manager, external-secrets
-             cluster-issuers, traefik, cloudnative-pg, rabbitmq, juicefs
-             openbao
-             openbao-bootstrap, cluster-secrets   (init/unseal/seed OpenBao)
-             authentik-db                          (CloudNativePG Postgres for Authentik)
-             authentik, argo-workflows
-             adomi-platform-controller             (operator for Tenant/AccessGroup/SSOApplication)
-             platform-resources                    (the Tenant + SSO apps it reconciles)
-```
+This repo installs the operators and shared infrastructure; your projects create the instances they manage (a Postgres `Cluster`, a
+`RabbitmqCluster`, and so on).
 
-Helmfile only installs Argo CD and that one root app. Everything else is just a file in [`argocd/templates/`](argocd/templates/)
-that tells Argo CD what to install. Argo CD reads them from git and keeps the cluster in sync.
+- 🔒 [**cert-manager**](https://cert-manager.io) - free TLS certificates from Let's Encrypt, renewed for you
+- 🚦 [**Traefik**](https://traefik.io) - ingress: routes traffic to your apps and terminates HTTPS
+- 🐘 [**CloudNativePG**](https://cloudnative-pg.io) - Postgres on demand, with backups to object storage
+- 🐇 [**RabbitMQ Operator**](https://www.rabbitmq.com/kubernetes/operator/operator-overview) - message queues
+- 🗄️ [**SeaweedFS**](https://github.com/seaweedfs/seaweedfs) - an in-cluster S3 object store (swap it for a real bucket when you're ready)
+- 📁 [**JuiceFS**](https://juicefs.com) - a shared POSIX filesystem, backed by object storage
+- 🔑 [**Authentik**](https://goauthentik.io) - single sign-on, one login across your apps
+- ⚙️ [**Argo Workflows**](https://argo-workflows.readthedocs.io) - runs jobs and pipelines, logged in through Authentik
+- 📡 [**Argo Events**](https://argoproj.github.io/argo-events/) - trigger workflows from webhooks, queues, and schedules
+- 🔐 [**OpenBao**](https://openbao.org) + [**External Secrets**](https://external-secrets.io) - secrets live in OpenBao (installed and seeded for you), never in this repo
+- 🤖 [**adomi-platform-controller**](https://github.com/adomi-io/adomi-platform-controller) - turns an `SSOApplication` resource into an Authentik app + credentials, hands-off
 
-The order matters - Authentik can't get a certificate until cert-manager is running, for example - so each piece is tagged with a
-[sync wave](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-waves/). Argo CD finishes one wave before starting the next.
-This is the official Argo CD
-[app-of-apps pattern](https://argo-cd.readthedocs.io/en/stable/operator-manual/cluster-bootstrapping/).
+# How it works
+
+`helmfile apply` installs exactly two things:
+
+- **Argo CD** - the GitOps engine.
+- **`argocd-root`** - one root `Application` that points Argo CD at the [`argocd/`](argocd/) folder in this repo.
+
+That's the whole bootstrap. Everything else - cert-manager, Traefik, OpenBao, Authentik, all of it - is just a file under
+[`argocd/templates/`](argocd/templates/), one `Application` per component. Argo CD reads them from git and keeps the cluster in
+sync. This is the standard Argo CD
+[app-of-apps pattern](https://argo-cd.readthedocs.io/en/stable/operator-manual/cluster-bootstrapping/): the root app's only job is
+to declare the other apps.
+
+Each app is tagged with a [sync wave](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-waves/) so it comes up in order;
+Argo CD finishes one wave before starting the next:
+
+| Wave | Comes up |
+|---|---|
+| 0 | cert-manager, external-secrets |
+| 1 | Traefik, cluster-issuers, CloudNativePG, JuiceFS, RabbitMQ operator |
+| 2 | OpenBao |
+| 3 | openbao-bootstrap, cluster-secrets, authentik-db, argo-events |
+| 4 | SeaweedFS, Authentik, Argo Workflows |
+| 5 | adomi-platform-controller |
+| 6 | platform-resources |
+
+You won't find these in `helmfile.yaml.gotmpl` - it only knows about Argo CD and the root app. Each one is a file in
+[`argocd/templates/`](argocd/templates/), and the versions and settings they share live in [`argocd/values.yaml`](argocd/values.yaml).
 
 # Getting started
 
 > [!WARNING]
-> These commands run against whatever cluster `kubectl` is pointed at. Make sure you're on the right one first.
+> These commands run against whatever cluster `kubectl` is pointed at. Check you're on the right one first.
 >
 > ```bash
 > kubectl config use-context your-cluster
 > kubectl get nodes
 > ```
 
-Pipe the installer into your shell. It grabs `kubectl`, `helm`, and `helmfile` if you don't have them, downloads this repo, and
-applies it. Give it your domain and Let's Encrypt email - either as variables, or let it ask you.
+Pipe the installer into your shell. It grabs `kubectl`, `helm`, `helmfile`, and the `helm-diff` plugin if you don't already have
+them, downloads this repo, and applies it. Give it your domain and Let's Encrypt email - as variables, or let it prompt you.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/adomi-io/kubernetes-provisioner/main/install.sh \
@@ -71,9 +93,15 @@ Running it in a terminal without those? It'll just ask:
 curl -fsSL https://raw.githubusercontent.com/adomi-io/kubernetes-provisioner/main/install.sh | sh -s -- apply
 #   Domain (e.g. example.com): ...
 #   Email for Let's Encrypt: ...
+#   Authentik admin email (Enter to skip admin setup): ...
+#   Authentik admin password (login user is "akadmin"): ...
 ```
 
-Want to look before you touch the cluster? Run it with no arguments to just download everything.
+Those last two are optional - press Enter to skip them - but if you fill them in you can log straight into Authentik as `akadmin`
+without its web setup step. The password is hashed locally and only the hash ever reaches the cluster (see
+[Logging in as the admin](#logging-in-as-the-admin)).
+
+Want to look before you touch the cluster? Run it with no command to just download everything and stop.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/adomi-io/kubernetes-provisioner/main/install.sh | sh
@@ -86,29 +114,27 @@ git clone https://github.com/adomi-io/kubernetes-provisioner.git
 cd kubernetes-provisioner
 
 # First run on a fresh cluster: --skip-diff-on-install lets Argo CD install its
-# CRDs before the root app is diffed. (The curl installer adds this for you.)
-helmfile apply --skip-diff-on-install
+# Application CRD before the root app is diffed. (The curl installer adds this for you.)
+DOMAIN=example.com ACME_EMAIL=you@example.com helmfile apply --skip-diff-on-install
 ```
 
 ### With Docker
 
-The image already has `kubectl`, `helm`, and `helmfile` in it. Mount your kubeconfig and run it.
+The image already has `kubectl`, `helm`, and `helmfile` baked in. Mount your kubeconfig and run it.
 
 ```bash
 docker run --rm -it \
   -v "$HOME/.kube/config:/root/.kube/config:ro" \
+  -e DOMAIN=example.com \
+  -e ACME_EMAIL=you@example.com \
   ghcr.io/adomi-io/kubernetes-provisioner:latest \
   apply
 ```
 
 ### Running on k3s
 
-k3s ships its own Traefik (in `kube-system`) and a built-in load balancer, **ServiceLB**. This repo installs and manages its *own*
-Traefik, and the two collide: both claim the cluster-wide `traefik` `IngressClass`, and both try to bind ports 80/443 - so one ends
-up stuck `Pending`. Cloud clusters (DigitalOcean and the like) don't preinstall an ingress, which is why you only hit this on k3s.
-
-The fix is to disable **only** k3s's bundled Traefik. Keep ServiceLB - that's what gives our Traefik an external IP on bare metal
-(the node's own IP), the same role the cloud load balancer plays on DigitalOcean.
+k3s ships its own Traefik, which collides with the one this repo installs - both claim the `traefik` `IngressClass` and try to bind
+ports 80/443, so one ends up stuck `Pending`. Disable k3s's bundled Traefik.
 
 On a fresh node, disable it at install:
 
@@ -116,26 +142,25 @@ On a fresh node, disable it at install:
 curl -fsSL https://get.k3s.io | sh -s - --disable=traefik
 ```
 
-On a node that's already running, make it persistent and restart - k3s then uninstalls the bundled Traefik:
+On a node that's already running, make it persistent and restart:
 
-```bash
+```yaml
 # /etc/rancher/k3s/config.yaml
 disable:
   - traefik
+```
 
-# then apply it:
+```bash
 sudo systemctl restart k3s
 ```
 
-Now `helmfile apply` as usual: our Traefik takes the `traefik` `IngressClass`, ServiceLB assigns it the node's IP (point your DNS
-there), and the install behaves exactly like it does on a cloud provider.
+Then `helmfile apply` as usual - our Traefik takes the `traefik` `IngressClass` and k3s's ServiceLB gives it the node's IP. Point
+your DNS there.
 
-**Raise the node's inotify limits.** Running the whole platform on one node means a lot of controllers (Argo CD, Authentik,
-OpenBao, cert-manager, JuiceFS, ...), each watching files via inotify. The kernel default (`fs.inotify.max_user_instances` is often
-**128**) runs out, and pods crash with `too many open files` / `failed to create fsnotify watcher` (the JuiceFS CSI controller is
-usually the first to hit it). Bump the limits on the node:
+**Raise the node's inotify limits.** A single node running every controller at once exhausts the default inotify limits, and pods
+crash with `too many open files` / `failed to create fsnotify watcher`. Bump them on the node:
 
-```bash
+```ini
 # /etc/sysctl.d/99-inotify.conf
 fs.inotify.max_user_instances=512
 fs.inotify.max_user_watches=1048576
@@ -145,36 +170,13 @@ fs.inotify.max_user_watches=1048576
 sudo sysctl --system   # apply now; persists across reboots
 ```
 
-This isn't k3s-specific - any single-node cluster running everything at once will need it - but it's where you'll most likely meet
-it. If a pod already crash-looped on this, delete it after raising the limits and Argo CD recreates it.
-
-# Layout
-
-```
-.env.example                    # copy to .env and fill in - all settings live here
-config.yaml.gotmpl              # reads those settings (env vars) into Helmfile
-helmfile.yaml.gotmpl            # the bootstrap: installs Argo CD + the root app
-values/
-  argo-cd.yaml.gotmpl           # Argo CD's own settings (its dashboard at argocd.<domain>)
-charts/
-  argocd-root/                  # the root app that starts it all
-  cluster-issuers/              # the Let's Encrypt issuers
-  cluster-secrets/              # the OpenBao connection + which secrets to pull
-  openbao-bootstrap/            # reconciler that inits/unseals/seeds OpenBao
-  platform-resources/           # Tenant + SSOApplication declarations for the platform controller
-  rabbitmq-cluster-operator/    # the RabbitMQ operator
-argocd/                         # everything Argo CD installs
-  values.yaml                   # versions, OpenBao settings, and what's passed down from config
-  templates/                    # one file per component (cert-manager, traefik, authentik, ...)
-.github/workflows/deploy.yml    # bootstrap from CI using a GitHub Environment
-install.sh                      # the bootstrap installer
-Dockerfile                      # the same, as a container image
-```
+If a pod already crash-looped on this, delete it after raising the limits and Argo CD recreates it.
 
 # Configuration
 
 Everything is set with environment variables, so you can run this without editing a single file - from a `.env`, from your shell,
-or from GitHub. `config.yaml.gotmpl` just reads those variables, with placeholder defaults for anything you don't set.
+or from GitHub. [`config.yaml.gotmpl`](config.yaml.gotmpl) just reads those variables, with placeholder defaults for anything you
+don't set.
 
 ```bash
 cp .env.example .env     # then fill it in
@@ -185,17 +187,21 @@ cp .env.example .env     # then fill it in
 | `DOMAIN` | your domain; apps land at `<app>.<domain>` | `example.com` |
 | `ACME_EMAIL` | Let's Encrypt registers your certs under this | `you@example.com` |
 | `AUTHENTIK_ADMIN_EMAIL` | email for the initial Authentik admin (`akadmin`); prompted if unset, blank to skip | _(empty)_ |
-| `AUTHENTIK_ADMIN_PASSWORD` | password for that admin, hashed locally, read by Authentik on first boot only; never stored in git/OpenBao | _(empty)_ |
+| `AUTHENTIK_ADMIN_PASSWORD` | password for that admin; hashed locally, read by Authentik on first boot only; never stored in git/OpenBao | _(empty)_ |
 | `GIT_REPO_URL` | the repo Argo CD reads the platform from | this repo |
 | `GIT_TARGET_REVISION` | the branch/tag Argo CD tracks | `main` |
+| `INGRESS_CLASS` | the `IngressClass` apps use | `traefik` |
+| `CLUSTER_ISSUER` | the cert-manager `ClusterIssuer` apps use | `letsencrypt-prod` |
+| `S3_ENDPOINT` | object store endpoint (defaults to the in-cluster SeaweedFS) | in-cluster SeaweedFS |
+| `S3_BUCKET` | the bucket name | `platform` |
 | `BAO_UNSEAL_MODE` | `kubernetes` (self-managed, no cloud) or `kms` (auto-unseal via cloud KMS) | `kubernetes` |
-| `BAO_SEAL_CONFIG` | HCL `seal` stanza for `kms` mode (see Secrets) | _(empty)_ |
+| `BAO_SEAL_CONFIG` | HCL `seal` stanza for `kms` mode (see [Secrets](#secrets)) | _(empty)_ |
 | `BAO_ADDR` | OpenBao address (defaults to the in-cluster one this installs) | `http://openbao.openbao.svc.cluster.local:8200` |
 | `BAO_KV_MOUNT` | the KV v2 mount holding your secrets | `secret` |
 | `BAO_KUBERNETES_AUTH_MOUNT` | OpenBao's Kubernetes auth mount path | `kubernetes` |
-| `BAO_KUBERNETES_AUTH_ROLE` | the OpenBao role the operator logs in as | `external-secrets` |
+| `BAO_KUBERNETES_AUTH_ROLE` | the OpenBao role External Secrets logs in as | `external-secrets` |
 | `BAO_AUTHENTIK_SECRET_PATH` | path to Authentik's secrets in OpenBao | `authentik` |
-| `BAO_ARGO_WORKFLOWS_SECRET_PATH` | path to Argo Workflows' SSO creds | `argo-workflows` |
+| `BAO_ARGO_WORKFLOWS_SECRET_PATH` | path to Argo Workflows' SSO creds in OpenBao | `argo-workflows` |
 
 The installer loads `.env` for you. Running `helmfile` directly instead? Export them first:
 
@@ -206,7 +212,7 @@ helmfile apply
 
 > [!IMPORTANT]
 > Argo CD reads from git, not from your laptop. `GIT_REPO_URL` / `GIT_TARGET_REVISION` must point at a repo the **cluster** can
-> reach, and changes need to be pushed before they take effect. If you customize anything under `argocd/` or `charts/`, point these
+> reach, and changes have to be pushed before they take effect. If you customize anything under `argocd/` or `charts/`, point these
 > at your own fork.
 
 ## Deploying from GitHub Actions
@@ -221,7 +227,7 @@ above as **Variables** (`DOMAIN`, `ACME_EMAIL`, `BAO_ADDR`, ...) and add the tar
 base64 -w0 < ~/.kube/config
 ```
 
-## Secrets
+# Secrets
 
 Secrets can't live in git, so this repo runs **[OpenBao](https://openbao.org)** in the cluster (the open-source fork of HashiCorp
 Vault) and the [External Secrets Operator](https://external-secrets.io/) copies values out of it into Kubernetes `Secret`s when a
@@ -229,38 +235,46 @@ component needs them. Nothing secret is ever committed - only a pointer to where
 
 The flow is:
 
-- **`openbao`** runs the secrets store (standalone, on a PVC, so secrets persist).
-- **`openbao-bootstrap`** initialises, unseals, and configures OpenBao and seeds the platform's secrets, automatically (below).
+- **`openbao`** runs the secrets store (standalone, file storage on a PVC, so secrets persist across restarts).
+- **`openbao-bootstrap`** initialises, unseals, and configures OpenBao, then seeds the platform's secrets - automatically (below).
 - **`external-secrets`** installs the operator that talks to OpenBao.
-- **`cluster-secrets`** declares where each secret lives, and the operator writes it into a normal `Secret` (e.g. `authentik-secrets`).
-- The component reads that `Secret`. Authentik gets its signing key and database password from it.
+- **`cluster-secrets`** declares the `ClusterSecretStore` (the connection to OpenBao) and the `ExternalSecret`s, and the operator
+  writes each one into a normal `Secret` (e.g. `authentik-secrets`, `seaweedfs-s3-config`).
+- The component reads that `Secret`. Authentik gets its signing key and bootstrap token from `authentik-secrets`; SeaweedFS gets
+  its S3 keys from `seaweedfs-s3-config`.
 
-The operator logs in with its own cluster identity, so no token is stored anywhere. OpenBao is API-compatible with Vault, so
-External Secrets talks to it through its `vault` provider.
+External Secrets logs in with its own cluster identity (Kubernetes auth), so no token is stored anywhere. OpenBao is
+API-compatible with Vault, so it talks to it through the `vault` provider.
 
-### It sets itself up
+## It sets itself up
 
-You don't run any `bao` commands. The **`openbao-bootstrap`** reconciler handles everything hands-off after `helmfile apply`: it
-runs `operator init`, keeps OpenBao unsealed, enables the KV store + Kubernetes auth + a read-only policy and role for External
-Secrets, and seeds Authentik's `secret_key` + API `bootstrap-token` as randomly-generated values (Authentik's database password is
-managed by CloudNativePG, not OpenBao). It's idempotent - it never re-initialises an initialised OpenBao and never overwrites a
-secret that already exists.
+You don't run any `bao` commands. The **`openbao-bootstrap`** reconciler handles everything hands-off after `helmfile apply`:
 
-### Unsealing: pick a mode
+- runs `operator init`, stores the unseal/recovery keys + root token in the `openbao-keys` Secret, and (in `kubernetes` mode) keeps
+  OpenBao unsealed, including after restarts;
+- enables the KV v2 store and Kubernetes auth, and creates a read-only policy + role for **External Secrets**;
+- creates the read/write policy + role the **adomi-platform-controller** logs in as (read on the Authentik path, read/write on the
+  per-app credential paths);
+- seeds Authentik's `secret_key` and an API `bootstrap-token` at `secret/authentik`, and the object store's `access-key` /
+  `secret-key` at `secret/s3` - each generated randomly, **only if it isn't already there**.
 
-OpenBao encrypts everything at rest and boots **sealed** - it needs an unlock key to start serving. `BAO_UNSEAL_MODE` chooses where
+It's idempotent: it never re-initialises an initialised OpenBao and never overwrites a secret that already exists. (Authentik's
+database password isn't in here - CloudNativePG generates and manages that.)
+
+## Unsealing: pick a mode
+
+OpenBao encrypts everything at rest and boots **sealed** - it needs an unseal key to start serving. `BAO_UNSEAL_MODE` chooses where
 that key lives:
 
-- **`kubernetes`** (default) - no cloud needed (works anywhere, e.g. **DigitalOcean**, which has no KMS). The unseal keys are kept
-  in a cluster Secret and the reconciler unseals OpenBao for you, including after restarts. Nothing to set - it's the default.
+- **`kubernetes`** (default) - no cloud KMS needed. The unseal keys are kept in the `openbao-keys` Secret and the reconciler
+  unseals OpenBao for you, including after restarts.
 
   > [!WARNING]
-  > In `kubernetes` mode the unseal keys live in the `openbao-keys` Secret, so OpenBao's at-rest encryption protects you only as
-  > much as RBAC on that Secret does. That's the price of zero-touch unseal without a cloud KMS - lock down access to the `openbao`
-  > namespace accordingly.
+  > In `kubernetes` mode the unseal keys live in the `openbao-keys` Secret, so OpenBao's at-rest encryption is only as strong as
+  > RBAC on that Secret. Lock down access to the `openbao` namespace.
 
-- **`kms`** - OpenBao auto-unseals from a cloud KMS (more secure, but needs a cloud that has one). Set `BAO_UNSEAL_MODE=kms` plus
-  `BAO_SEAL_CONFIG` (and a service-account annotation) for your provider:
+- **`kms`** - OpenBao auto-unseals from a cloud KMS. Set `BAO_UNSEAL_MODE=kms` plus `BAO_SEAL_CONFIG` (and a service-account
+  annotation) for your provider:
 
   ```bash
   # AWS KMS (key access via IRSA - the annotation is the IAM role ARN)
@@ -275,7 +289,7 @@ that key lives:
   ```
   Azure Key Vault and Transit seals work the same way - see the [seal docs](https://openbao.org/docs/configuration/seal/).
 
-### Recovery / break-glass
+## Recovery / break-glass
 
 The unseal (or recovery) keys and the root token are saved in the **`openbao-keys`** Secret in the `openbao` namespace. Copy them
 somewhere safe and restrict who can read that Secret:
@@ -284,40 +298,56 @@ somewhere safe and restrict who can read that Secret:
 kubectl -n openbao get secret openbao-keys -o jsonpath='{.data.root-token}' | base64 -d
 ```
 
-For manual admin, log in with that token from the pod: `kubectl -n openbao exec -it openbao-0 -- bao login <root-token>`.
+For manual admin, log in with that token from the pod:
 
-### Adding a secret for another component
+```bash
+RT=$(kubectl -n openbao get secret openbao-keys -o jsonpath='{.data.root-token}' | base64 -d)
+kubectl -n openbao exec -it openbao-0 -- bao login "$RT"
+```
+
+## Adding a secret for another component
 
 Add an `ExternalSecret` to `charts/cluster-secrets/templates/`, put the value in OpenBao, and point the component at the `Secret`
-that comes out. Use the Authentik files as a template.
+that comes out. Use [`authentik-externalsecret.yaml`](charts/cluster-secrets/templates/authentik-externalsecret.yaml) as a template.
 
-## Single sign-on registers itself
+# Object storage
 
-Apps that log in through Authentik (OIDC) need an Authentik **provider** + **application** to exist, with a client ID/secret that
-the app then reads. Rather than clicking that together in the Authentik UI per app, the **`adomi-platform-controller`** reconciles it
-from Kubernetes resources - the same hands-off, idempotent style as `openbao-bootstrap`. It is an operator that lives in [`adomi-io/adomi-platform-controller`](https://github.com/adomi-io/adomi-platform-controller)
-and watches three CRDs:
+CloudNativePG backups, JuiceFS volumes, and anything else that wants a bucket need somewhere to put bytes. By default this repo
+installs **SeaweedFS** and runs its S3 gateway in-cluster, so you get object storage on a bare cluster with nothing external to set
+up. The access/secret keys are generated into OpenBao at `secret/s3` (by `openbao-bootstrap`), turned into the
+`seaweedfs-s3-config` Secret by External Secrets, and SeaweedFS authenticates with them.
 
-- **`Tenant`** (`platform.adomi.io`) - an org boundary that owns a namespace and a secret path.
-- **`AccessGroup`** (`identity.adomi.io`) - a group in Authentik, used to gate who can sign in.
-- **`SSOApplication`** (`identity.adomi.io`) - an app that needs SSO.
+Ready for the real thing? Point `S3_ENDPOINT` / `S3_BUCKET` at an external bucket (DigitalOcean Spaces, AWS S3, ...) and put its
+keys in OpenBao at `secret/s3`. Everything that reads from `secret/s3` - including the Authentik database backups - follows along,
+no other changes needed.
+
+# Single sign-on
+
+Authentik is the identity provider - one login across your apps, at `auth.<domain>`. An app that logs in through it (OIDC) needs an
+Authentik **provider** + **application**, plus a client ID/secret the app reads. The **`adomi-platform-controller`** creates that
+from a Kubernetes resource instead of the Authentik UI. It's an operator that lives in
+[`adomi-io/adomi-platform-controller`](https://github.com/adomi-io/adomi-platform-controller), runs in the `adomi-system` namespace,
+and watches one CRD:
+
+- **`SSOApplication`** (`identity.adomi.io/v1alpha1`) - an app that needs SSO.
 
 For each `SSOApplication` it:
 
-- ensures a `client-id` / `client-secret` pair exists at `secret/<app>` in OpenBao, generated once, never overwritten;
-- ensures an OAuth2 provider + Application exist in Authentik using those exact credentials (looked up by name/slug, so re-runs
-  never duplicate);
-- restricts access to the bound access groups; and
-- writes an `ExternalSecret` that delivers the credentials into the app's namespace.
+- generates a `client-id` / `client-secret` pair at `secret/<app>` in OpenBao, **once** - existing values are never overwritten;
+- creates (or updates to match) an Authentik OAuth2 provider + Application with those exact credentials, looked up by name/slug so
+  re-runs never duplicate;
+- ensures any Authentik `groups` you listed exist (membership you manage in Authentik);
+- and, if you ask for a `targetSecret`, writes an `ExternalSecret` that delivers the credentials into the app's namespace as a
+  normal `Secret`.
 
-**OpenBao is the source of truth** - Authentik is made to match it - so a re-run just reconciles, and a lost Authentik object is
-recreated with the same credentials. The controller is deployed by the `adomi-platform-controller` app (wave 5); the platform
-`Tenant` and the SSO apps themselves are declared in [`charts/platform-resources`](charts/platform-resources) (wave 6).
+**OpenBao is the source of truth** - Authentik is made to match it. On delete the controller removes the Authentik app and provider
+but leaves the OpenBao credentials in place, so recreating the resource reuses the same client ID/secret.
 
-It authenticates to OpenBao with its **own ServiceAccount** (OpenBao kubernetes auth) - no static token to store. `openbao-bootstrap`
-creates the role and write policy it uses. It talks to the Authentik API with a bootstrap token. `openbao-bootstrap` generates one into `secret/<authentik path>` (key
-`bootstrap-token`), and Authentik reads it at **first boot** as `AUTHENTIK_BOOTSTRAP_TOKEN` to mint an `akadmin` API token. That env
-is only read on first boot, so on a cluster where Authentik already exists, create a token for `akadmin` in the UI once and store it:
+It stores no static token. It logs in to OpenBao with its **own ServiceAccount** (OpenBao Kubernetes auth); `openbao-bootstrap`
+creates the role and policy. It calls the Authentik API with a bootstrap token that `openbao-bootstrap` generates into
+`secret/authentik` (key `bootstrap-token`); Authentik reads it at **first boot** as `AUTHENTIK_BOOTSTRAP_TOKEN` to mint an `akadmin`
+API token. That env is read on first boot only, so on a cluster where Authentik already exists, create a token for `akadmin` in the
+UI once and store it:
 
 ```bash
 RT=$(kubectl -n openbao get secret openbao-keys -o jsonpath='{.data.root-token}' | base64 -d)
@@ -325,39 +355,29 @@ kubectl -n openbao exec -it openbao-0 -- sh -c \
   "bao login $RT >/dev/null && bao kv patch secret/authentik bootstrap-token=<token>"
 ```
 
-### Logging in as the admin
+## Logging in as the admin
 
 The admin user is **`akadmin`**. The installer can set its password for you: it prompts for an admin email + password (or reads
 `AUTHENTIK_ADMIN_EMAIL` / `AUTHENTIK_ADMIN_PASSWORD`), **hashes the password locally**, and drops the hash in a one-time
 `authentik-bootstrap` Secret that Authentik reads on first boot. The plaintext never touches git, OpenBao, or even an env var on
 disk - only the one-way hash reaches the cluster, and it's ignored after the first boot. Leave the prompt blank to skip it.
 
-If you skipped it (or Authentik is already running), set the password directly - the in-browser setup flow is closed once `akadmin`
-exists (which it does, because the bootstrap token creates it):
+If you skipped it (or Authentik is already running), set the password directly:
 
 ```bash
 kubectl -n authentik exec -it deploy/authentik-server -- ak changepassword akadmin
 ```
 
-Then log in at `https://auth.<domain>/` as `akadmin`. You can delete the one-time secret afterward (`kubectl -n authentik delete
-secret authentik-bootstrap`); it's never read again.
+Then log in at `https://auth.<domain>/` as `akadmin`. You can delete the one-time secret afterward; it's never read again:
 
-### Argo Workflows single sign-on
+```bash
+kubectl -n authentik delete secret authentik-bootstrap
+```
 
-Argo Workflows always logs in through Authentik. The `argo-workflows` `SSOApplication` (in
-[`charts/platform-resources`](charts/platform-resources)) declares it, so the Authentik app and its
-credentials are created for you - no manual UI setup. The app lands at slug `argo-workflows` with redirect
-`https://argo.<domain>/oauth2/callback` and the `openid profile email groups` scopes (the controller creates a `groups` scope
-mapping if one doesn't exist yet).
+## Giving an app single sign-on
 
-Who gets in is still yours to decide: put people in an Authentik group and use the Argo Workflows
-[SSO + RBAC docs](https://argo-workflows.readthedocs.io/en/latest/argo-server-sso/) to make a group admin vs read-only. Until you
-set that up, everyone who logs in gets the default (read-only) access.
-
-### Registering another app
-
-Declare an `SSOApplication` (and, if you want to gate who can sign in, an `AccessGroup`). Add it next to `argo-workflows` in
-[`charts/platform-resources`](charts/platform-resources):
+Declare an `SSOApplication` in [`charts/platform-resources`](charts/platform-resources). The required field is `redirectUris`; the
+rest have defaults (`scopes` defaults to `openid profile email groups`, the OpenBao path defaults to the app slug).
 
 ```yaml
 apiVersion: identity.adomi.io/v1alpha1
@@ -366,19 +386,29 @@ metadata:
   name: my-app
   namespace: my-app
 spec:
-  tenantRef:
-    name: platform
   displayName: My App
+  protocol: oauth2
   redirectUris:
-    - https://my-app.<domain>/oauth2/callback
+    - https://my-app.example.com/oauth2/callback
   scopes: [openid, profile, email, groups]
+  # Optional: Authentik groups the controller makes sure exist, so you can gate
+  # who signs in (add members in Authentik).
+  groups:
+    - My App Users
+  # Optional: publish the credentials into your app's namespace as a Secret.
   credentials:
     targetSecret:
       name: my-app-sso
 ```
 
-The controller generates the credentials, sets up Authentik, and writes the `my-app-sso` Secret into your app's namespace. Point
-the app at that Secret. No separate `ExternalSecret` needed - the controller manages it.
+The controller generates the credentials, sets up Authentik, and writes the `my-app-sso` Secret (keys `client-id` /
+`client-secret`) into your app's namespace. Point the app at that Secret - no separate `ExternalSecret` needed, the controller
+manages it.
+
+Listing `groups` makes the controller ensure those groups exist in Authentik; how an app maps a group to a role is up to the app.
+[`charts/platform-resources`](charts/platform-resources) ships `argo-workflows` as a worked example - it maps the
+`Argo Workflows Admins` group to admin via the RBAC `extraObjects` in
+[`argocd/templates/argo-workflows.yaml`](argocd/templates/argo-workflows.yaml).
 
 # Usage
 
@@ -399,7 +429,7 @@ kubectl -n argocd port-forward svc/argo-cd-argocd-server 8080:443
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
 ```
 
-Traefik asks the cloud for a load balancer with a public IP. Read its address and point your DNS (`*.example.com`) at it.
+Traefik gets a `LoadBalancer` service with an external IP. Read it and point your DNS (`*.example.com`) there.
 
 ```bash
 kubectl -n traefik get svc traefik
@@ -411,7 +441,7 @@ kubectl -n traefik get svc traefik
 
 # Adding an app
 
-Drop a new file in `argocd/templates/`. For something off the shelf, add its chart to `argocd/values.yaml` and point at it:
+Drop a new file in `argocd/templates/`. For something off the shelf, add its chart version to `argocd/values.yaml` and point at it:
 
 ```yaml
 # argocd/templates/my-app.yaml
