@@ -19,6 +19,12 @@ spec:
     targetRevision: {{ .Values.charts.superset.version | quote }}
     helm:
       valuesObject:
+        # The apache/superset image ships without a Postgres driver; install it so
+        # Superset can reach its CloudNativePG metadata database.
+        bootstrapScript: |
+          #!/bin/bash
+          pip install psycopg2-binary
+          if [ ! -f ~/bootstrap ]; then echo "Running Superset" > ~/bootstrap; fi
         postgresql:
           enabled: false
         redis:

@@ -26,7 +26,7 @@ spec:
         url: https://docs.{{ .Values.domain }}
         postgresql:
           enabled: false
-        externalDatabase:
+        externalPostgresql:
           host: outline-db-rw
           port: 5432
           username: outline

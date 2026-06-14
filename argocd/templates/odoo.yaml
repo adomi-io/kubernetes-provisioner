@@ -42,6 +42,9 @@ spec:
           listDb: false
           workers: 2
           withoutDemo: true
+          # Initialise the base module on first boot - listDb is off, so the empty
+          # CloudNativePG database can't be initialised through the web manager.
+          initModules: base
         persistence:
           enabled: true
           size: 10Gi

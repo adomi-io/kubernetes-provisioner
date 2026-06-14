@@ -19,6 +19,15 @@ spec:
     initdb:
       database: {{ .database | quote }}
       owner: {{ .owner | quote }}
+{{- with .initSQL }}
+      # Runs once, as the superuser in the application database, after the owner is
+      # created. Used where a component needs extra roles its own non-superuser owner
+      # can't create (e.g. Windmill's windmill_admin / windmill_user).
+      postInitApplicationSQL:
+{{- range . }}
+        - {{ . | quote }}
+{{- end }}
+{{- end }}
 {{- if $root.Values.backup.enabled }}
   backup:
     retentionPolicy: {{ $root.Values.backup.retention | quote }}

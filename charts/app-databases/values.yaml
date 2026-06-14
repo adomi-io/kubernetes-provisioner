@@ -48,7 +48,18 @@ databases:
   - { name: forgejo-db,    namespace: forgejo,     database: forgejo,    owner: forgejo }
   - { name: harbor-db,     namespace: harbor,      database: harbor,     owner: harbor }
   - { name: outline-db,    namespace: outline,     database: outline,    owner: outline }
-  - { name: windmill-db,   namespace: windmill,    database: windmill,   owner: windmill }
+  # Windmill's migrations grant to windmill_admin / windmill_user but its non-superuser
+  # owner can't create them, so CNPG seeds the roles and grants them to the owner here.
+  - name: windmill-db
+    namespace: windmill
+    database: windmill
+    owner: windmill
+    initSQL:
+      - CREATE ROLE windmill_user
+      - CREATE ROLE windmill_admin WITH BYPASSRLS
+      - GRANT windmill_user TO windmill_admin
+      - GRANT windmill_admin TO windmill
+      - GRANT windmill_user TO windmill
   - { name: superset-db,   namespace: superset,    database: superset,   owner: superset }
   - { name: vaultwarden-db, namespace: vaultwarden, database: vaultwarden, owner: vaultwarden }
   - { name: openwebui-db,  namespace: open-webui,  database: openwebui,  owner: openwebui }
