@@ -1,12 +1,11 @@
 # Grafana + Prometheus + Alertmanager (kube-prometheus-stack), in the monitoring
-# namespace. Grafana is exposed at grafana.<domain> and logs in through Authentik
-# (generic_oauth); Prometheus and Alertmanager are deliberately left cluster-internal
-# (no ingress) since they have no auth of their own - reach them with a port-forward,
-# or front them with forward-auth before exposing.
+# namespace. Grafana is exposed at grafana.<domain> behind Authentik forward-auth and
+# logs the user in from the X-authentik-* headers (auth.proxy). Prometheus and
+# Alertmanager are deliberately left cluster-internal (no ingress) since they have no
+# auth of their own - reach them with a port-forward.
 #
-# Grafana's OAuth client id/secret come from grafana-sso (published by the platform
-# controller); its local admin password comes from grafana-admin (seeded by
-# openbao-bootstrap). Loki and Tempo are wired in as datasources.
+# Grafana's local admin password comes from grafana-admin (seeded by openbao-bootstrap)
+# and is the break-glass login (basic-auth via the API). Loki and Tempo are datasources.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -29,41 +28,26 @@ spec:
             existingSecret: grafana-admin
             userKey: admin-user
             passwordKey: admin-password
-          # OAuth credentials from the controller-published Secret, as env that
-          # grafana.ini's generic_oauth section overrides the (unset) inline values with.
-          envValueFrom:
-            GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
-              secretKeyRef:
-                name: grafana-sso
-                key: client-id
-            GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
-              secretKeyRef:
-                name: grafana-sso
-                key: client-secret
           grafana.ini:
             server:
               root_url: https://grafana.{{ .Values.domain }}
-            # Local login form hidden; Grafana redirects straight to Authentik.
+            # Authentik forward-auth gates the ingress and passes the signed-in user
+            # as X-authentik-* headers; Grafana trusts them (auth.proxy) and logs the
+            # user in, auto-creating the account. Local login form stays off;
+            # break-glass is basic-auth via the API with the grafana-admin credentials.
             auth:
               disable_login_form: true
-            users:
-              # No self-service Grafana accounts; users come from Authentik only.
-              allow_sign_up: false
-            auth.generic_oauth:
+            auth.proxy:
               enabled: true
-              name: Authentik
-              # Auto-provision a Grafana user on first Authentik login (Authentik
-              # controls who can authenticate).
-              allow_sign_up: true
-              auto_login: true
-              scopes: "openid profile email groups"
-              auth_url: https://auth.{{ .Values.domain }}/application/o/authorize/
-              token_url: https://auth.{{ .Values.domain }}/application/o/token/
-              api_url: https://auth.{{ .Values.domain }}/application/o/userinfo/
-              # Authentik groups -> Grafana roles.
-              role_attribute_path: "contains(groups[*], 'Grafana Admins') && 'Admin' || contains(groups[*], 'Grafana Editors') && 'Editor' || 'Viewer'"
-              role_attribute_strict: false
-              allow_assign_grafana_admin: true
+              header_name: X-authentik-username
+              header_property: username
+              auto_sign_up: true
+              headers: "Email:X-authentik-email Name:X-authentik-name"
+              sync_ttl: 60
+            users:
+              # No self-service accounts; identities come from the forward-auth header.
+              # New users land in the default org role (Viewer); promote admins manually.
+              allow_sign_up: false
           additionalDataSources:
             - name: Loki
               type: loki
@@ -78,6 +62,8 @@ spec:
             ingressClassName: {{ .Values.ingressClass }}
             annotations:
               cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+              # Require an Authentik sign-in (forward-auth) before reaching Grafana.
+              traefik.ingress.kubernetes.io/router.middlewares: "monitoring-ak-forward-auth@kubernetescrd"
             hosts:
               - grafana.{{ .Values.domain }}
             path: /

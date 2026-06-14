@@ -62,6 +62,8 @@ spec:
           className: {{ .Values.ingressClass }}
           annotations:
             cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            # Require an Authentik sign-in (forward-auth) before reaching LiteLLM.
+            traefik.ingress.kubernetes.io/router.middlewares: "litellm-ak-forward-auth@kubernetescrd"
           hosts:
             - host: llm.{{ .Values.domain }}
               paths:

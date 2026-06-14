@@ -38,6 +38,8 @@ spec:
             className: {{ .Values.ingressClass }}
             annotations:
               cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+              # Require an Authentik sign-in (forward-auth) before reaching Harbor.
+              traefik.ingress.kubernetes.io/router.middlewares: "harbor-ak-forward-auth@kubernetescrd"
             hosts:
               core: harbor.{{ .Values.domain }}
         database:

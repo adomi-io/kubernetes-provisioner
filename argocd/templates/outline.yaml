@@ -72,6 +72,8 @@ spec:
           className: {{ .Values.ingressClass }}
           annotations:
             cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            # Require an Authentik sign-in (forward-auth) before reaching Outline.
+            traefik.ingress.kubernetes.io/router.middlewares: "outline-ak-forward-auth@kubernetescrd"
           hosts:
             - host: docs.{{ .Values.domain }}
               paths:

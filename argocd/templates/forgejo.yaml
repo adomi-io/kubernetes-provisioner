@@ -1,8 +1,7 @@
 # Forgejo (git forge) at git.<domain>, from the Forgejo OCI Helm chart. Uses the
-# CloudNativePG forgejo-db cluster (password from forgejo-db-app via env). Logs in
-# through Authentik (OpenID Connect): the controller writes the creds to OpenBao,
-# app-databases turns them into the forgejo-oauth Secret with the key/secret keys
-# Forgejo's oauth init job expects.
+# CloudNativePG forgejo-db cluster (password from forgejo-db-app via env). Auth is
+# handled by Authentik forward-auth at the ingress; Forgejo trusts the X-authentik-*
+# headers the outpost injects (reverse proxy auth) and auto-creates the account.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -31,24 +30,23 @@ spec:
               NAME: forgejo
               USER: forgejo
               SSL_MODE: require
-            # Self-registration off and sign-in required to view anything. Accounts
-            # are created only by logging in through Authentik (auto-registration
-            # below). Forgejo has no setting to hide the local login form, so it still
-            # renders. git over HTTPS keeps working via tokens.
+            # Trust the forward-auth headers from the Authentik outpost and log the
+            # user in (auto-registering on first visit). Self-registration and sign-in
+            # to view are off; the local login form is unused.
             service:
               DISABLE_REGISTRATION: true
               SHOW_REGISTRATION_BUTTON: false
               REQUIRE_SIGNIN_VIEW: true
-            # OpenID 2.0 self-service login/signup off (distinct from the Authentik OIDC).
-            openid:
-              ENABLE_OPENID_SIGNIN: false
-              ENABLE_OPENID_SIGNUP: false
-            # Auto-create a Forgejo account on first Authentik (OIDC) login and link
-            # by email; this is allowed even with DISABLE_REGISTRATION on.
-            oauth2_client:
-              ENABLE_AUTO_REGISTRATION: true
-              ACCOUNT_LINKING: auto
-              UPDATE_AVATAR: true
+              ENABLE_REVERSE_PROXY_AUTHENTICATION: true
+              ENABLE_REVERSE_PROXY_AUTO_REGISTRATION: true
+              ENABLE_REVERSE_PROXY_EMAIL: true
+              ENABLE_REVERSE_PROXY_FULL_NAME: true
+            security:
+              REVERSE_PROXY_AUTHENTICATION_USER: X-authentik-username
+              REVERSE_PROXY_AUTHENTICATION_EMAIL: X-authentik-email
+              REVERSE_PROXY_AUTHENTICATION_FULL_NAME: X-authentik-name
+              # Trust any source for the header - in-cluster only, fronted by Traefik.
+              REVERSE_PROXY_TRUSTED_PROXIES: "*"
           # DB password injected from the CNPG-managed Secret (no value in git).
           additionalConfigFromEnvs:
             - name: FORGEJO__DATABASE__PASSWD
@@ -56,17 +54,13 @@ spec:
                 secretKeyRef:
                   name: forgejo-db-app
                   key: password
-          # Authentik OIDC. The init job reads keys key/secret from forgejo-oauth.
-          oauth:
-            - name: authentik
-              provider: openidConnect
-              existingSecret: forgejo-oauth
-              autoDiscoverUrl: https://auth.{{ .Values.domain }}/application/o/forgejo/.well-known/openid-configuration
         ingress:
           enabled: true
           className: {{ .Values.ingressClass }}
           annotations:
             cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            # Require an Authentik sign-in (forward-auth) before reaching Forgejo.
+            traefik.ingress.kubernetes.io/router.middlewares: "forgejo-ak-forward-auth@kubernetescrd"
           hosts:
             - host: git.{{ .Values.domain }}
               paths:

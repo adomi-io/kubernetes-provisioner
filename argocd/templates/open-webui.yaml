@@ -1,6 +1,7 @@
 # Open WebUI (chat UI for LLMs) at chat.<domain>. Uses the CloudNativePG
-# openwebui-db cluster, logs in through Authentik (OIDC, creds from openwebui-sso),
-# and talks to the in-cluster LiteLLM proxy as its OpenAI-compatible backend.
+# openwebui-db cluster, sits behind Authentik forward-auth and logs the user in from
+# the X-authentik-* headers (trusted-header auth), and talks to the in-cluster LiteLLM
+# proxy as its OpenAI-compatible backend.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -32,30 +33,24 @@ spec:
           # Point at the LiteLLM proxy (OpenAI-compatible).
           - name: OPENAI_API_BASE_URL
             value: http://litellm.litellm.svc.cluster.local:4000/v1
-          # Hide the local login form and disable local email/password signup;
-          # Authentik is the only way in (ENABLE_OAUTH_SIGNUP below auto-provisions
-          # accounts on first SSO login). The first SSO user is admin.
+          # Auth is handled by Authentik forward-auth at the ingress; Open WebUI trusts
+          # the X-authentik-* headers and logs the user in, creating the account on
+          # first visit (first user is admin). Local login form and signup are off.
           - name: ENABLE_LOGIN_FORM
             value: "False"
           - name: ENABLE_SIGNUP
             value: "False"
-        sso:
-          enabled: true
-          # Auto-create an account on first Authentik login (ENABLE_OAUTH_SIGNUP).
-          enableSignup: true
-          oidc:
-            enabled: true
-            providerName: Authentik
-            providerUrl: https://auth.{{ .Values.domain }}/application/o/openwebui/.well-known/openid-configuration
-            clientExistingSecret: openwebui-sso
-            clientIdExistingSecretKey: client-id
-            clientExistingSecretKey: client-secret
-            scopes: "openid email profile"
+          - name: WEBUI_AUTH_TRUSTED_EMAIL_HEADER
+            value: X-authentik-email
+          - name: WEBUI_AUTH_TRUSTED_NAME_HEADER
+            value: X-authentik-name
         ingress:
           enabled: true
           class: {{ .Values.ingressClass }}
           annotations:
             cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            # Require an Authentik sign-in (forward-auth) before reaching Open WebUI.
+            traefik.ingress.kubernetes.io/router.middlewares: "open-webui-ak-forward-auth@kubernetescrd"
           host: chat.{{ .Values.domain }}
           tls: true
           existingSecret: open-webui-tls

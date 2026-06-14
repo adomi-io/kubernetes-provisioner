@@ -8,7 +8,18 @@ openbao:
   argoWorkflowsSecretPath: argo-workflows
 
 # Namespaces that get an Authentik forward-auth Traefik Middleware (ak-forward-auth).
-# Apps with no native SSO reference it from their ingress to require sign-in. The
-# Middleware must live in the same namespace as the ingress it protects.
+# Every app ingress references it to require an Authentik sign-in. The Middleware
+# must live in the same namespace as the ingress it protects.
 forwardAuthNamespaces:
+  - argo
+  - argocd
+  - forgejo
+  - harbor
+  - litellm
+  - monitoring
+  - open-webui
+  - outline
+  - superset
   - uptime-kuma
+  - vaultwarden
+  - windmill

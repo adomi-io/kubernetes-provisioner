@@ -1,6 +1,7 @@
 # Vaultwarden (Bitwarden-compatible password manager) at vault.<domain>. Uses the
-# CloudNativePG vaultwarden-db cluster, and logs in through Authentik via its SSO
-# support (credentials from vaultwarden-sso, published by the platform controller).
+# CloudNativePG vaultwarden-db cluster. Access is gated by Authentik forward-auth at
+# the ingress; inside Vaultwarden you unlock with your email + master password (its
+# own auth, required for vault encryption). No self-service registration.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -19,8 +20,8 @@ spec:
     helm:
       valuesObject:
         domain: https://vault.{{ .Values.domain }}
-        # Self-registration and org invitations off; users are added via the
-        # Vaultwarden admin page (/admin, ADMIN_TOKEN) and sign in through Authentik.
+        # Self-registration and org invitations off; new users are added via the
+        # Vaultwarden admin page (/admin, ADMIN_TOKEN).
         signupsAllowed: false
         invitationsAllowed: false
         database:
@@ -31,23 +32,14 @@ spec:
           existingSecret: vaultwarden-db-app
           existingSecretUserKey: username
           existingSecretPasswordKey: password
-        sso:
-          enabled: true
-          # Only SSO logins are accepted - the local email/master-password form is off.
-          onlySSO: true
-          authority: https://auth.{{ .Values.domain }}/application/o/vaultwarden/
-          existingSecret: vaultwarden-sso
-          clientId:
-            existingSecretKey: client-id
-          clientSecret:
-            existingSecretKey: client-secret
-          scopes: "openid email profile"
         ingress:
           enabled: true
           class: {{ .Values.ingressClass }}
           nginxIngressAnnotations: false
           additionalAnnotations:
             cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            # Require an Authentik sign-in (forward-auth) before reaching Vaultwarden.
+            traefik.ingress.kubernetes.io/router.middlewares: "vaultwarden-ak-forward-auth@kubernetescrd"
           tls: true
           hostname: vault.{{ .Values.domain }}
   destination:

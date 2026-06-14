@@ -85,6 +85,8 @@ spec:
           ingressClassName: {{ .Values.ingressClass }}
           annotations:
             cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            # Require an Authentik sign-in (forward-auth) before reaching Superset.
+            traefik.ingress.kubernetes.io/router.middlewares: "superset-ak-forward-auth@kubernetescrd"
           path: /
           pathType: Prefix
           hosts:

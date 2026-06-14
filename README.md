@@ -79,31 +79,28 @@ apps get their own Postgres `Cluster` (with backups), created with the namespace
 | App | URL | What it is | Database | SSO |
 |---|---|---|---|---|
 | **Odoo** | `odoo.` | ERP / business apps | CNPG | manual (needs the `auth_oidc` addon in the image) |
-| **Grafana** | `grafana.` | dashboards | - | ✅ Authentik (groups → Admin/Editor/Viewer) |
-| **Prometheus / Alertmanager** | _(in-cluster)_ | metrics + alerting | - | no ingress (no built-in auth) - port-forward or front with forward-auth |
+| **Grafana** | `grafana.` | dashboards | - | ✅ Authentik (forward-auth, header login) |
+| **Prometheus / Alertmanager** | _(in-cluster)_ | metrics + alerting | - | no ingress (no built-in auth) - port-forward |
 | **Loki** | _(datasource)_ | logs (S3-backed) | - | - |
 | **Tempo** | _(datasource)_ | traces (S3-backed) | - | - |
 | **Uptime Kuma** | `status.` | uptime / status page | - | ✅ Authentik (forward-auth) |
-| **Forgejo** | `git.` | git forge | CNPG | ✅ Authentik (OIDC) |
-| **Harbor** | `harbor.` | container registry (S3-backed) | CNPG | ✅ Authentik (OIDC, auto-configured) |
-| **Outline** | `docs.` | wiki / knowledge base (S3-backed) | CNPG | ✅ Authentik (OIDC) |
-| **Windmill** | `windmill.` | workflow / script automation | CNPG | manual (UI; see below) |
-| **Superset** | `superset.` | BI / dashboards | CNPG | ✅ Authentik (OIDC) |
-| **Vaultwarden** | `vault.` | password manager | CNPG | ✅ Authentik (OIDC, SSO-only) |
-| **Open WebUI** | `chat.` | chat UI for LLMs | CNPG | ✅ Authentik (OIDC) |
-| **LiteLLM** | `llm.` | LLM gateway / proxy | CNPG | ✅ Authentik (OIDC; Enterprise beyond 5 users) |
+| **Forgejo** | `git.` | git forge | CNPG | ✅ Authentik (forward-auth, header login) |
+| **Harbor** | `harbor.` | container registry (S3-backed) | CNPG | ✅ Authentik (forward-auth + OIDC) |
+| **Outline** | `docs.` | wiki / knowledge base (S3-backed) | CNPG | ✅ Authentik (forward-auth + OIDC) |
+| **Windmill** | `windmill.` | workflow / script automation | CNPG | ✅ Authentik (forward-auth; OIDC manual) |
+| **Superset** | `superset.` | BI / dashboards | CNPG | ✅ Authentik (forward-auth + OIDC) |
+| **Vaultwarden** | `vault.` | password manager | CNPG | ✅ Authentik (forward-auth; master password) |
+| **Open WebUI** | `chat.` | chat UI for LLMs | CNPG | ✅ Authentik (forward-auth, header login) |
+| **LiteLLM** | `llm.` | LLM gateway / proxy | CNPG | ✅ Authentik (forward-auth + OIDC; Enterprise beyond 5 users) |
 
-The apps marked ✅ log in through Authentik with no extra steps: the
-[`adomi-platform-controller`](#single-sign-on) reconciles an `SSOApplication` (in
-[`charts/platform-resources`](charts/platform-resources)), mints the OAuth credentials in OpenBao, and publishes the
-`<app>-sso` Secret into the app's namespace. Add yourself to the relevant Authentik group (e.g. `Grafana Admins`,
-`Forgejo Admins`) to get in.
-
-Self-registration is disabled and, where the app supports it, the local login form is off; accounts are created on first
-Authentik login. Apps with no native SSO (Uptime Kuma) sit behind Authentik forward-auth: a `proxy` `SSOApplication` and a
-per-namespace `ak-forward-auth` Traefik Middleware
-([`charts/platform-resources`](charts/platform-resources/templates/forward-auth.yaml)) validate each request against
-Authentik's embedded outpost.
+Every app sits behind Authentik **forward-auth**: a domain-level `proxy` `SSOApplication` and a per-namespace
+`ak-forward-auth` Traefik Middleware ([`charts/platform-resources`](charts/platform-resources/templates/forward-auth.yaml))
+check each request against Authentik's embedded outpost, so you sign in once at Authentik. Behind the gate, Forgejo,
+Grafana and Open WebUI auto-login from the `X-authentik-*` headers (no second screen); the others keep their own OIDC
+login, which is seamless because the Authentik session already exists; Vaultwarden still asks for its master password.
+Self-registration is off everywhere. The [`adomi-platform-controller`](#single-sign-on) reconciles each `SSOApplication`
+(in [`charts/platform-resources`](charts/platform-resources)) into the Authentik apps, groups, and (for the OIDC apps) the
+`<app>-sso` credentials.
 
 `openbao-bootstrap` generates these app secrets into OpenBao (its `appSecrets` list) and External Secrets delivers them:
 Grafana's admin password, Superset's secret key, Odoo's master password, Harbor's admin password, LiteLLM's master key,

@@ -41,5 +41,10 @@ server:
     ingressClassName: {{ .Values.ingressClass }}
     annotations:
       cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+      # Require an Authentik sign-in (forward-auth) before reaching the Argo CD UI.
+      # The ak-forward-auth Middleware is created by platform-resources; until then
+      # Traefik 503s this route on a fresh cluster. Argo CD's own OIDC stays as the
+      # in-app login. Break-glass: port-forward to the argocd-server Service.
+      traefik.ingress.kubernetes.io/router.middlewares: "argocd-ak-forward-auth@kubernetescrd"
     hostname: argocd.{{ .Values.domain }}
     tls: true

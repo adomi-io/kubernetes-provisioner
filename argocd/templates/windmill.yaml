@@ -34,6 +34,8 @@ spec:
           className: {{ .Values.ingressClass }}
           annotations:
             cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            # Require an Authentik sign-in (forward-auth) before reaching Windmill.
+            traefik.ingress.kubernetes.io/router.middlewares: "windmill-ak-forward-auth@kubernetescrd"
           tls:
             - secretName: windmill-tls
               hosts:

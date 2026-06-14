@@ -65,6 +65,8 @@ spec:
             ingressClassName: {{ .Values.ingressClass }}
             annotations:
               cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+              # Require an Authentik sign-in (forward-auth) before reaching Argo Workflows.
+              traefik.ingress.kubernetes.io/router.middlewares: "argo-ak-forward-auth@kubernetescrd"
             hosts:
               - argo.{{ .Values.domain }}
             tls:
