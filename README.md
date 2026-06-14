@@ -81,6 +81,7 @@ apps get their own Postgres `Cluster` (with backups), created with the namespace
 | **Odoo** | `odoo.` | ERP / business apps | CNPG | manual (needs the `auth_oidc` addon in the image) |
 | **Grafana** | `grafana.` | dashboards | - | ✅ Authentik (forward-auth, header login) |
 | **Prometheus / Alertmanager** | _(in-cluster)_ | metrics + alerting | - | no ingress (no built-in auth) - port-forward |
+| **Traefik dashboard** | `traefik.` | ingress / router dashboard | - | ✅ Authentik (forward-auth) |
 | **Loki** | _(datasource)_ | logs (S3-backed) | - | - |
 | **Tempo** | _(datasource)_ | traces (S3-backed) | - | - |
 | **Uptime Kuma** | `status.` | uptime / status page | - | ✅ Authentik (forward-auth) |

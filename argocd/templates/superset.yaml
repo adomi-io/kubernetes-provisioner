@@ -19,14 +19,14 @@ spec:
     targetRevision: {{ .Values.charts.superset.version | quote }}
     helm:
       valuesObject:
-        # The apache/superset image ships without a Postgres driver. Superset runs
-        # from the /app/.venv uv venv (which has no pip), so a bare `pip install`
-        # lands in the system env the venv can't import from - install the driver
-        # into the venv with uv instead.
+        # The apache/superset image ships without a Postgres driver or authlib (the
+        # OAuth login pulls authlib in via Flask-AppBuilder). Superset runs from the
+        # /app/.venv uv venv (which has no pip), so a bare `pip install` lands in the
+        # system env the venv can't import from - install into the venv with uv.
         bootstrapScript: |
           #!/bin/bash
           export UV_CACHE_DIR=/tmp/uv-cache
-          uv pip install --python /app/.venv/bin/python psycopg2-binary
+          uv pip install --python /app/.venv/bin/python psycopg2-binary authlib
           if [ ! -f ~/bootstrap ]; then echo "Running Superset" > ~/bootstrap; fi
         postgresql:
           enabled: false

@@ -56,6 +56,34 @@ spec:
         service:
           enabled: true
           type: LoadBalancer
+        # The Traefik dashboard (api@internal) at traefik.<domain>, gated by the same
+        # Authentik forward-auth Middleware as the apps (created in the traefik
+        # namespace via platform-resources forwardAuthNamespaces).
+        ingressRoute:
+          dashboard:
+            enabled: true
+            matchRule: "Host(`traefik.{{ .Values.domain }}`)"
+            entryPoints:
+              - websecure
+            middlewares:
+              - name: ak-forward-auth
+            tls:
+              secretName: traefik-dashboard-tls
+        # IngressRoute isn't watched by cert-manager's ingress-shim, so issue the
+        # dashboard cert explicitly.
+        extraObjects:
+          - apiVersion: cert-manager.io/v1
+            kind: Certificate
+            metadata:
+              name: traefik-dashboard-tls
+              namespace: traefik
+            spec:
+              secretName: traefik-dashboard-tls
+              issuerRef:
+                name: {{ .Values.clusterIssuer }}
+                kind: ClusterIssuer
+              dnsNames:
+                - traefik.{{ .Values.domain }}
   destination:
     server: https://kubernetes.default.svc
     namespace: traefik

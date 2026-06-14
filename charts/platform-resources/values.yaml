@@ -20,6 +20,7 @@ forwardAuthNamespaces:
   - open-webui
   - outline
   - superset
+  - traefik
   - uptime-kuma
   - vaultwarden
   - windmill
