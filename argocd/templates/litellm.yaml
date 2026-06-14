@@ -4,9 +4,8 @@
 # on every sync. Add your provider API keys via environmentSecrets and your model
 # list via proxy_config.
 #
-# SSO: the Admin UI can use Authentik via GENERIC_* env (litellm-sso is
-# pre-provisioned), but LiteLLM SSO is Enterprise-licensed beyond 5 users, so it's
-# left for you to enable.
+# SSO: the Admin UI logs in through Authentik via GENERIC_* env (credentials from
+# litellm-sso). NOTE: LiteLLM SSO is Enterprise-licensed beyond 5 users.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -26,6 +25,29 @@ spec:
       valuesObject:
         masterkeySecretName: litellm-masterkey
         masterkeySecretKey: masterkey
+        # Admin UI logs in through Authentik (generic OIDC). client-id/secret come
+        # from the controller-published litellm-sso Secret; endpoints point at Authentik.
+        extraEnvVars:
+          - name: PROXY_BASE_URL
+            value: https://llm.{{ .Values.domain }}
+          - name: GENERIC_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: litellm-sso
+                key: client-id
+          - name: GENERIC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: litellm-sso
+                key: client-secret
+          - name: GENERIC_AUTHORIZATION_ENDPOINT
+            value: https://auth.{{ .Values.domain }}/application/o/authorize/
+          - name: GENERIC_TOKEN_ENDPOINT
+            value: https://auth.{{ .Values.domain }}/application/o/token/
+          - name: GENERIC_USERINFO_ENDPOINT
+            value: https://auth.{{ .Values.domain }}/application/o/userinfo/
+          - name: GENERIC_SCOPE
+            value: "openid email profile"
         db:
           deployStandalone: false
           useExisting: true

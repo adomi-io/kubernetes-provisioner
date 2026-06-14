@@ -6,3 +6,9 @@ domain: example.com
 openbao:
   # Flat OpenBao path the Argo Workflows credentials live at.
   argoWorkflowsSecretPath: argo-workflows
+
+# Namespaces that get an Authentik forward-auth Traefik Middleware (ak-forward-auth).
+# Apps with no native SSO reference it from their ingress to require sign-in. The
+# Middleware must live in the same namespace as the ingress it protects.
+forwardAuthNamespaces:
+  - uptime-kuma

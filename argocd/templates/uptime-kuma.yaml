@@ -1,6 +1,8 @@
 # Uptime Kuma (status / uptime monitoring) at status.<domain>. Stores its monitors
-# on a PVC. It has no native SSO - front it with forward-auth if you need to gate
-# the admin UI; the status page itself is meant to be public.
+# on a PVC. It has no native SSO, so the whole host is fronted by Authentik
+# forward-auth (the ak-forward-auth Middleware from platform-resources) - every
+# request must sign in through Authentik. This also gates the public status pages;
+# to expose those, exclude their paths from the Middleware on the ingress.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -27,6 +29,8 @@ spec:
           className: {{ .Values.ingressClass }}
           annotations:
             cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer }}
+            # Require Authentik sign-in (forwardAuth Middleware in this namespace).
+            traefik.ingress.kubernetes.io/router.middlewares: uptime-kuma-ak-forward-auth@kubernetescrd
           hosts:
             - host: status.{{ .Values.domain }}
               paths:

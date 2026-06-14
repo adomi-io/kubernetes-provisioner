@@ -1,0 +1,49 @@
+# Forward-auth for apps with no native SSO. A domain-level proxy SSOApplication
+# (reconciled by the controller into an Authentik proxy provider attached to the
+# embedded outpost) plus a Traefik forwardAuth Middleware per protected namespace.
+# Apps reference the Middleware from their ingress to require Authentik sign-in.
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: forward-auth
+  namespace: authentik
+spec:
+  displayName: Platform (Forward Auth)
+  protocol: proxy
+  proxy:
+    # One provider gates every host under the domain; the outpost lives at auth.
+    mode: forwardDomain
+    externalHost: https://auth.{{ .Values.domain }}
+    cookieDomain: {{ .Values.domain }}
+  scopes:
+    - openid
+    - profile
+    - email
+    - groups
+{{- range .Values.forwardAuthNamespaces }}
+---
+# The Middleware must be same-namespace as the ingress it protects, so render one
+# copy per protected namespace. It checks each request against Authentik's embedded
+# outpost; the proxy provider behind it comes from the SSOApplication above.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: ak-forward-auth
+  namespace: {{ . }}
+spec:
+  forwardAuth:
+    address: http://authentik-server.authentik.svc.cluster.local/outpost.goauthentik.io/auth/traefik
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-authentik-username
+      - X-authentik-groups
+      - X-authentik-email
+      - X-authentik-name
+      - X-authentik-uid
+      - X-authentik-jwt
+      - X-authentik-meta-jwks
+      - X-authentik-meta-outpost
+      - X-authentik-meta-provider
+      - X-authentik-meta-app
+      - X-authentik-meta-version
+{{- end }}

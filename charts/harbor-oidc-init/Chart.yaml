@@ -1,0 +1,10 @@
+# Harbor stores its auth configuration in the database, not in Helm values, so OIDC
+# can't be set declaratively through the Harbor chart. This chart runs a Job that
+# calls Harbor's configurations API once Harbor is up, switching it to oidc_auth and
+# turning off self-registration. Deployed by the harbor-oidc app after Harbor.
+apiVersion: v2
+name: harbor-oidc-init
+description: Configures Harbor OIDC (auth_mode=oidc_auth) via its API after Harbor is up.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

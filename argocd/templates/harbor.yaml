@@ -3,9 +3,10 @@
 # SeaweedFS S3 for image/chart blobs (harbor bucket, creds from harbor-s3). The
 # admin password comes from harbor-admin (seeded by openbao-bootstrap).
 #
-# SSO: Harbor can't pre-seed OIDC via Helm. The platform controller has already
-# created the Authentik app + harbor-sso Secret; finish in Administration ->
-# Configuration -> Authentication (OIDC) once Harbor is up.
+# SSO: Harbor can't pre-seed OIDC via Helm (its auth config lives in the database),
+# so the harbor-oidc app (charts/harbor-oidc-init) configures it via the Harbor API
+# after Harbor is up - auth_mode=oidc_auth, self-registration off, OIDC creds from
+# harbor-sso. The local admin (harbor-admin) stays as break-glass.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

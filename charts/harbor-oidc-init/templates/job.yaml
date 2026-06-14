@@ -1,0 +1,74 @@
+# Configures Harbor for Authentik OIDC. Runs as an Argo PostSync hook so it executes
+# after this app syncs and is re-created (BeforeHookCreation) on each sync, keeping it
+# idempotent. It waits for Harbor core, then PUTs the auth configuration: switch to
+# oidc_auth, disable self-registration, auto-onboard OIDC users. Harbor keeps its
+# local admin account as break-glass even in oidc_auth mode.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: harbor-oidc-init
+  namespace: harbor
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      name: harbor-oidc-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: configure
+          image: {{ .Values.image | quote }}
+          env:
+            - name: DOMAIN
+              value: {{ .Values.domain | quote }}
+            - name: HARBOR_CORE
+              value: {{ .Values.harborCoreURL | quote }}
+            - name: HARBOR_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.adminSecret | quote }}
+                  key: {{ .Values.adminSecretKey | quote }}
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oidcSecret | quote }}
+                  key: client-id
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oidcSecret | quote }}
+                  key: client-secret
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              echo "Waiting for Harbor core at $HARBOR_CORE ..."
+              until curl -sf "$HARBOR_CORE/api/v2.0/systeminfo" >/dev/null 2>&1; do
+                sleep 5
+              done
+              echo "Harbor is up; applying OIDC configuration."
+              cat >/tmp/cfg.json <<EOF
+              {
+                "auth_mode": "oidc_auth",
+                "self_registration": false,
+                "primary_auth_mode": true,
+                "oidc_name": "authentik",
+                "oidc_endpoint": "https://auth.${DOMAIN}/application/o/harbor/",
+                "oidc_client_id": "${OIDC_CLIENT_ID}",
+                "oidc_client_secret": "${OIDC_CLIENT_SECRET}",
+                "oidc_scope": "openid,email,profile,offline_access",
+                "oidc_verify_cert": true,
+                "oidc_auto_onboard": true,
+                "oidc_user_claim": "preferred_username"
+              }
+              EOF
+              curl -sf -u "admin:${HARBOR_ADMIN_PASSWORD}" -X PUT \
+                -H "Content-Type: application/json" \
+                --data @/tmp/cfg.json \
+                "$HARBOR_CORE/api/v2.0/configurations"
+              echo "Harbor OIDC configuration applied."

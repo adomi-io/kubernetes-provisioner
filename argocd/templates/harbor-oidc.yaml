@@ -1,0 +1,31 @@
+# Configures Harbor for Authentik OIDC. Harbor's auth lives in its database, not in
+# Helm, so this runs after Harbor (wave 8, Harbor is wave 7) and calls the Harbor API
+# to switch auth_mode to oidc_auth and disable self-registration. Lives in this repo
+# under charts/harbor-oidc-init (a PostSync-hook Job, idempotent across syncs).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor-oidc
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.gitRepoURL | quote }}
+    targetRevision: {{ .Values.gitTargetRevision | quote }}
+    path: charts/harbor-oidc-init
+    helm:
+      valuesObject:
+        domain: {{ .Values.domain | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -19,6 +19,10 @@ spec:
     helm:
       valuesObject:
         domain: https://vault.{{ .Values.domain }}
+        # Self-registration and org invitations off; users are added via the
+        # Vaultwarden admin page (/admin, ADMIN_TOKEN) and sign in through Authentik.
+        signupsAllowed: false
+        invitationsAllowed: false
         database:
           type: postgresql
           host: vaultwarden-db-rw
@@ -29,6 +33,8 @@ spec:
           existingSecretPasswordKey: password
         sso:
           enabled: true
+          # Only SSO logins are accepted - the local email/master-password form is off.
+          onlySSO: true
           authority: https://auth.{{ .Values.domain }}/application/o/vaultwarden/
           existingSecret: vaultwarden-sso
           clientId:

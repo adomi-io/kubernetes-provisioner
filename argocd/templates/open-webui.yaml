@@ -32,8 +32,16 @@ spec:
           # Point at the LiteLLM proxy (OpenAI-compatible).
           - name: OPENAI_API_BASE_URL
             value: http://litellm.litellm.svc.cluster.local:4000/v1
+          # Hide the local login form and disable local email/password signup;
+          # Authentik is the only way in (ENABLE_OAUTH_SIGNUP below auto-provisions
+          # accounts on first SSO login). The first SSO user is admin.
+          - name: ENABLE_LOGIN_FORM
+            value: "False"
+          - name: ENABLE_SIGNUP
+            value: "False"
         sso:
           enabled: true
+          # Auto-create an account on first Authentik login (ENABLE_OAUTH_SIGNUP).
           enableSignup: true
           oidc:
             enabled: true

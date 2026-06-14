@@ -83,15 +83,15 @@ apps get their own Postgres `Cluster` (with backups), created with the namespace
 | **Prometheus / Alertmanager** | _(in-cluster)_ | metrics + alerting | - | no ingress (no built-in auth) - port-forward or front with forward-auth |
 | **Loki** | _(datasource)_ | logs (S3-backed) | - | - |
 | **Tempo** | _(datasource)_ | traces (S3-backed) | - | - |
-| **Uptime Kuma** | `status.` | uptime / status page | - | none (no native SSO) |
+| **Uptime Kuma** | `status.` | uptime / status page | - | ✅ Authentik (forward-auth) |
 | **Forgejo** | `git.` | git forge | CNPG | ✅ Authentik (OIDC) |
-| **Harbor** | `harbor.` | container registry (S3-backed) | CNPG | manual (post-install; see below) |
+| **Harbor** | `harbor.` | container registry (S3-backed) | CNPG | ✅ Authentik (OIDC, auto-configured) |
 | **Outline** | `docs.` | wiki / knowledge base (S3-backed) | CNPG | ✅ Authentik (OIDC) |
 | **Windmill** | `windmill.` | workflow / script automation | CNPG | manual (UI; see below) |
 | **Superset** | `superset.` | BI / dashboards | CNPG | ✅ Authentik (OIDC) |
-| **Vaultwarden** | `vault.` | password manager | CNPG | ✅ Authentik (OIDC) |
+| **Vaultwarden** | `vault.` | password manager | CNPG | ✅ Authentik (OIDC, SSO-only) |
 | **Open WebUI** | `chat.` | chat UI for LLMs | CNPG | ✅ Authentik (OIDC) |
-| **LiteLLM** | `llm.` | LLM gateway / proxy | CNPG | manual (Enterprise beyond 5 users; see below) |
+| **LiteLLM** | `llm.` | LLM gateway / proxy | CNPG | ✅ Authentik (OIDC; Enterprise beyond 5 users) |
 
 The apps marked ✅ log in through Authentik with no extra steps: the
 [`adomi-platform-controller`](#single-sign-on) reconciles an `SSOApplication` (in
@@ -99,20 +99,23 @@ The apps marked ✅ log in through Authentik with no extra steps: the
 `<app>-sso` Secret into the app's namespace. Add yourself to the relevant Authentik group (e.g. `Grafana Admins`,
 `Forgejo Admins`) to get in.
 
+Self-registration is disabled and, where the app supports it, the local login form is off; accounts are created on first
+Authentik login. Apps with no native SSO (Uptime Kuma) sit behind Authentik forward-auth: a `proxy` `SSOApplication` and a
+per-namespace `ak-forward-auth` Traefik Middleware
+([`charts/platform-resources`](charts/platform-resources/templates/forward-auth.yaml)) validate each request against
+Authentik's embedded outpost.
+
 `openbao-bootstrap` generates these app secrets into OpenBao (its `appSecrets` list) and External Secrets delivers them:
 Grafana's admin password, Superset's secret key, Odoo's master password, Harbor's admin password, LiteLLM's master key,
 and Outline's `SECRET_KEY`/`UTILS_SECRET`.
 
 ## SSO configured by hand
 
-These apps don't take their OIDC config from Helm. Their Authentik app and credentials are provisioned; configure the OIDC
-client in each app:
+These apps can't take their OIDC config from Helm and aren't auto-configured. Their Authentik app and credentials are
+provisioned; finish the OIDC client in each app:
 
-- **Harbor** - finish in *Administration → Configuration → Authentication → OIDC* (or the `/api/v2.0/configurations`
-  API), using the `harbor-sso` Secret and issuer `https://auth.<domain>/application/o/harbor/`.
 - **Windmill** - add the provider under *Instance Settings → SSO/OAuth* using `windmill-sso` (a fully generic OIDC
   provider may need Windmill Enterprise).
-- **LiteLLM** - set the `GENERIC_*` env from `litellm-sso`; LiteLLM SSO is Enterprise-licensed beyond 5 users.
 - **Odoo** - Odoo Community needs the OCA `auth_oidc` addon baked into the image, then configured in Odoo's settings.
 
 # Getting started

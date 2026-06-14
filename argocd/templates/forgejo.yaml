@@ -31,6 +31,24 @@ spec:
               NAME: forgejo
               USER: forgejo
               SSL_MODE: require
+            # Self-registration off and sign-in required to view anything. Accounts
+            # are created only by logging in through Authentik (auto-registration
+            # below). Forgejo has no setting to hide the local login form, so it still
+            # renders. git over HTTPS keeps working via tokens.
+            service:
+              DISABLE_REGISTRATION: true
+              SHOW_REGISTRATION_BUTTON: false
+              REQUIRE_SIGNIN_VIEW: true
+            # OpenID 2.0 self-service login/signup off (distinct from the Authentik OIDC).
+            openid:
+              ENABLE_OPENID_SIGNIN: false
+              ENABLE_OPENID_SIGNUP: false
+            # Auto-create a Forgejo account on first Authentik (OIDC) login and link
+            # by email; this is allowed even with DISABLE_REGISTRATION on.
+            oauth2_client:
+              ENABLE_AUTO_REGISTRATION: true
+              ACCOUNT_LINKING: auto
+              UPDATE_AVATAR: true
           # DB password injected from the CNPG-managed Secret (no value in git).
           additionalConfigFromEnvs:
             - name: FORGEJO__DATABASE__PASSWD

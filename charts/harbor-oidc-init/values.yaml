@@ -1,0 +1,13 @@
+# Filled in by the harbor-oidc app (from argocd/values.yaml). Placeholder default so
+# the chart renders standalone with `helm template`.
+domain: example.com
+
+# In-cluster Harbor core endpoint and the Secrets holding the admin password and the
+# controller-published OIDC client credentials.
+harborCoreURL: http://harbor-core.harbor.svc.cluster.local
+adminSecret: harbor-admin
+adminSecretKey: admin-password
+oidcSecret: harbor-sso
+
+# Image with a shell + curl for the API calls.
+image: curlimages/curl:8.11.1

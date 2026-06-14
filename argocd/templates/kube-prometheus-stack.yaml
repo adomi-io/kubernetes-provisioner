@@ -43,9 +43,19 @@ spec:
           grafana.ini:
             server:
               root_url: https://grafana.{{ .Values.domain }}
+            # Local login form hidden; Grafana redirects straight to Authentik.
+            auth:
+              disable_login_form: true
+            users:
+              # No self-service Grafana accounts; users come from Authentik only.
+              allow_sign_up: false
             auth.generic_oauth:
               enabled: true
               name: Authentik
+              # Auto-provision a Grafana user on first Authentik login (Authentik
+              # controls who can authenticate).
+              allow_sign_up: true
+              auto_login: true
               scopes: "openid profile email groups"
               auth_url: https://auth.{{ .Values.domain }}/application/o/authorize/
               token_url: https://auth.{{ .Values.domain }}/application/o/token/
