@@ -23,6 +23,10 @@ spec:
     path: {{ .Values.charts.odoo.path | quote }}
     helm:
       valuesObject:
+        # Adomi's community base image - Odoo plus a set of OCA addons baked in.
+        image:
+          repository: ghcr.io/adomi-io/odoo-community-base
+          tag: latest
         postgresql:
           enabled: false
         database:
