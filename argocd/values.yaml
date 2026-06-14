@@ -27,7 +27,7 @@ charts:
   authentik:
     repoURL: https://charts.goauthentik.io
     chart: authentik
-    version: 2026.5.2
+    version: 2026.5.3
   argoWorkflows:
     repoURL: https://argoproj.github.io/argo-helm
     chart: argo-workflows
