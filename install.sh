@@ -14,7 +14,8 @@
 #   DOMAIN        your domain         (e.g. example.com; prompted if unset + interactive)
 #   ACME_EMAIL    Let's Encrypt email (e.g. you@example.com; prompted if unset)
 #   AUTHENTIK_ADMIN_EMAIL     email for the initial Authentik admin (akadmin); optional
-#   AUTHENTIK_ADMIN_PASSWORD  password for that admin; optional. Hashed locally and
+#   AUTHENTIK_ADMIN_PASSWORD  password for that admin; optional. Hashed locally when
+#                 Python is available (else stored as-is in the in-cluster Secret) and
 #                 read by Authentik on first boot only - never stored in git/OpenBao.
 #   REPO          git repo            (default: adomi-io/kubernetes-provisioner)
 #   REF           branch/tag/sha      (default: main)
@@ -171,23 +172,26 @@ sys.stdout.write("pbkdf2_sha256$%d$%s$%s" % (it, salt, base64.b64encode(dk).deco
 PY
 }
 
-# If an admin password was given, hash it and drop it in a one-time Secret that
-# Authentik reads on FIRST BOOT ONLY to set up akadmin. The hash (not the
-# plaintext) is all that reaches the cluster; nothing is stored in git or OpenBao.
-# Read only once, so re-runs and later edits don't change an existing install.
+# If an admin password was given, drop it in a one-time Secret that Authentik reads
+# on FIRST BOOT ONLY to set up akadmin. Prefer a locally-computed hash (so only the
+# hash reaches the cluster); if no Python is available to hash, fall back to the
+# plaintext password rather than skip - it still lands only in the in-cluster Secret,
+# never in git or OpenBao. Read only once, so re-runs don't change an existing install.
 bootstrap_authentik_admin() {
   [ -n "${AUTHENTIK_ADMIN_PASSWORD:-}" ] || return 0
-  hash="$(django_password_hash "$AUTHENTIK_ADMIN_PASSWORD" 2>/dev/null || true)"
-  if [ -z "$hash" ]; then
-    warn "need python3 (or python) to hash the admin password - skipping admin setup."
-    warn "set it later with: kubectl -n authentik exec -it deploy/authentik-server -- ak changepassword akadmin"
-    return 0
-  fi
   kubectl create namespace authentik >/dev/null 2>&1 || true
-  set -- --from-literal=password-hash="$hash"
+  hash="$(django_password_hash "$AUTHENTIK_ADMIN_PASSWORD" 2>/dev/null || true)"
+  if [ -n "$hash" ]; then
+    set -- --from-literal=password-hash="$hash"
+    method="password hash"
+  else
+    warn "no python3/python to hash the admin password - storing it in the in-cluster Secret as plaintext."
+    set -- --from-literal=password="$AUTHENTIK_ADMIN_PASSWORD"
+    method="plaintext password"
+  fi
   [ -n "${AUTHENTIK_ADMIN_EMAIL:-}" ] && set -- "$@" --from-literal=email="$AUTHENTIK_ADMIN_EMAIL"
   if kubectl -n authentik create secret generic authentik-bootstrap "$@" --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1; then
-    say "provisioned Authentik admin (akadmin) via password hash (one-time secret authentik-bootstrap)"
+    say "provisioned Authentik admin (akadmin) via $method (one-time secret authentik-bootstrap)"
   else
     warn "couldn't create the authentik-bootstrap Secret; set the password later with: kubectl -n authentik exec -it deploy/authentik-server -- ak changepassword akadmin"
   fi
