@@ -19,11 +19,14 @@ spec:
     targetRevision: {{ .Values.charts.superset.version | quote }}
     helm:
       valuesObject:
-        # The apache/superset image ships without a Postgres driver; install it so
-        # Superset can reach its CloudNativePG metadata database.
+        # The apache/superset image ships without a Postgres driver. Superset runs
+        # from the /app/.venv uv venv (which has no pip), so a bare `pip install`
+        # lands in the system env the venv can't import from - install the driver
+        # into the venv with uv instead.
         bootstrapScript: |
           #!/bin/bash
-          pip install psycopg2-binary
+          export UV_CACHE_DIR=/tmp/uv-cache
+          uv pip install --python /app/.venv/bin/python psycopg2-binary
           if [ ! -f ~/bootstrap ]; then echo "Running Superset" > ~/bootstrap; fi
         postgresql:
           enabled: false
