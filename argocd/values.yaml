@@ -52,10 +52,6 @@ charts:
     repoURL: https://seaweedfs.github.io/seaweedfs/helm
     chart: seaweedfs
     version: 4.31.0
-
-  # ---- Platform stack (Phase 1 + Phase 3) ----------------------------------
-  # Odoo comes from the adomi-helm git repo (a chart path, not a Helm repo), so
-  # it carries path + targetRevision instead of chart + version.
   odoo:
     repoURL: https://github.com/adomi-io/adomi-helm.git
     path: charts/odoo
@@ -65,7 +61,6 @@ charts:
     repoURL: https://prometheus-community.github.io/helm-charts
     chart: kube-prometheus-stack
     version: 86.2.3
-  # Loki and Tempo moved off grafana.github.io to the community repo in 2026.
   loki:
     repoURL: https://grafana-community.github.io/helm-charts
     chart: loki
@@ -78,7 +73,6 @@ charts:
     repoURL: https://helm.irsigler.cloud
     chart: uptime-kuma
     version: 4.1.0
-  # OCI chart: repoURL is the registry path (no oci:// scheme), chart is the name.
   forgejo:
     repoURL: code.forgejo.org/forgejo-helm
     chart: forgejo
@@ -107,7 +101,6 @@ charts:
     repoURL: https://helm.openwebui.com
     chart: open-webui
     version: 14.8.0
-  # OCI chart published to GHCR; tag tracks the LiteLLM app version.
   litellm:
     repoURL: ghcr.io/berriai
     chart: litellm-helm
@@ -135,22 +128,11 @@ openbao:
   serviceAccountAnnotationKey: ""
   serviceAccountAnnotationValue: ""
 
-# Authentik references used by the platform controller: the out-of-the-box flows
-# and self-signed signing cert it binds new OAuth2 providers to. The controller
-# (adomi-platform-controller, below) reconciles SSOApplication resources into
-# Authentik using these.
 authentik:
   address: http://authentik-server.authentik.svc.cluster.local
   authorizationFlowSlug: default-provider-authorization-implicit-consent
   invalidationFlowSlug: default-provider-invalidation-flow
   signingKeyName: authentik Self-signed Certificate
-
-# adomi-platform-controller: the platform operator.
-# It reconciles SSOApplication CRDs into Authentik and OpenBao (authenticating to
-# OpenBao with its own ServiceAccount, no static token).
-# Deployed from its own repo; the SSO apps are declared in
-# charts/platform-resources. The OpenBao role/policy it uses is created by
-# openbao-bootstrap (controllerRole there).
 platformController:
   repoURL: https://github.com/adomi-io/adomi-platform-controller.git
   targetRevision: master
@@ -158,11 +140,6 @@ platformController:
     repository: ghcr.io/adomi-io/adomi-platform-controller
     # Empty defaults to the chart appVersion. Pin to a published tag in prod.
     tag: ""
-
-# Authentik's database, run by CloudNativePG (the authentik-db app) rather than a
-# bundled Postgres. One instance suits a single node; bump to 3 for HA on a
-# multi-node cluster. Backups (continuous WAL + a daily base backup) go to the
-# object store below.
 authentikDb:
   instances: 1
   storageSize: 8Gi
@@ -170,14 +147,6 @@ authentikDb:
     enabled: true
     retention: "30d"
     schedule: "0 0 3 * * *"
-
-# Argo Events runs alongside Argo Workflows in the argo namespace (EventSources
-# receive external events, Sensors trigger Workflows). Sensors and EventSources
-# can't run without an EventBus, and the chart doesn't ship one, so the
-# argo-events app provisions a JetStream (NATS) bus named "default". jetstreamVersion
-# must match a version in the controller's config (see the chart's configs.jetstream).
-# 1 replica suits a single node; bump to 3 for HA on a multi-node cluster
-# (JetStream wants an odd count for quorum).
 argoEvents:
   eventBus:
     jetstreamVersion: "2.10.10"
@@ -188,8 +157,6 @@ s3:
   endpoint: http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333
   bucket: platform
   secretPath: s3
-  # Extra buckets SeaweedFS creates for components that store objects directly
-  # (separate from CNPG backups, which share the platform bucket under a prefix).
   extraBuckets:
     - loki
     - tempo
