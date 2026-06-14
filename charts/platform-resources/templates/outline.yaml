@@ -10,6 +10,11 @@ metadata:
 spec:
   displayName: Outline
   protocol: oauth2
+  group: Productivity
+  icon: fa://fa-book
+  publisher: Outline
+  description: Team knowledge base and wiki
+  launchUrl: https://docs.{{ .Values.domain }}
   redirectUris:
     - https://docs.{{ .Values.domain }}/auth/oidc.callback
   scopes:

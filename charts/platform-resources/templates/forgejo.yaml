@@ -11,6 +11,11 @@ metadata:
 spec:
   displayName: Forgejo
   protocol: oauth2
+  group: Developer Tools
+  icon: fa://fa-git-alt
+  publisher: Forgejo
+  description: Self-hosted Git forge
+  launchUrl: https://git.{{ .Values.domain }}
   groups:
     - Forgejo Admins
   redirectUris:

@@ -12,6 +12,11 @@ metadata:
 spec:
   displayName: Argo CD
   protocol: oauth2
+  group: Developer Tools
+  icon: fa://fa-rocket
+  publisher: Argo Project
+  description: GitOps continuous delivery for Kubernetes
+  launchUrl: https://argocd.{{ .Values.domain }}
   groups:
     - Argo CD Admins
   redirectUris:

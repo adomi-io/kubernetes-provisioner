@@ -9,6 +9,11 @@ metadata:
 spec:
   displayName: Vaultwarden
   protocol: oauth2
+  group: Security
+  icon: fa://fa-key
+  publisher: Vaultwarden
+  description: Password and secrets manager
+  launchUrl: https://vault.{{ .Values.domain }}
   redirectUris:
     - https://vault.{{ .Values.domain }}/identity/connect/oidc-signin
   scopes:

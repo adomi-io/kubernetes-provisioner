@@ -9,6 +9,11 @@ metadata:
 spec:
   displayName: Open WebUI
   protocol: oauth2
+  group: AI
+  icon: fa://fa-comments
+  publisher: Open WebUI
+  description: Chat interface for self-hosted LLMs
+  launchUrl: https://chat.{{ .Values.domain }}
   redirectUris:
     - https://chat.{{ .Values.domain }}/oauth/oidc/callback
   scopes:

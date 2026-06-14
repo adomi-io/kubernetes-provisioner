@@ -10,6 +10,10 @@ metadata:
 spec:
   displayName: Platform (Forward Auth)
   protocol: proxy
+  group: Platform
+  icon: fa://fa-shield-alt
+  publisher: Adomi
+  description: Forward-auth gateway for apps without native SSO
   proxy:
     # One provider gates every host under the domain; the outpost lives at auth.
     mode: forwardDomain

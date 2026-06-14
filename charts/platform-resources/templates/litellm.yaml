@@ -9,6 +9,11 @@ metadata:
 spec:
   displayName: LiteLLM
   protocol: oauth2
+  group: AI
+  icon: fa://fa-robot
+  publisher: BerriAI
+  description: LLM gateway and proxy
+  launchUrl: https://llm.{{ .Values.domain }}
   redirectUris:
     - https://llm.{{ .Values.domain }}/sso/callback
   scopes:

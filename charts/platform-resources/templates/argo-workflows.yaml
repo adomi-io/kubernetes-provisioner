@@ -10,6 +10,11 @@ metadata:
 spec:
   displayName: Argo Workflows
   protocol: oauth2
+  group: Automation
+  icon: fa://fa-sitemap
+  publisher: Argo Project
+  description: Kubernetes-native workflow engine
+  launchUrl: https://argo.{{ .Values.domain }}
   # The controller ensures this Authentik group exists; members get admin in Argo
   # via the SSO RBAC mapping in the argo-workflows app (add members in Authentik).
   groups:

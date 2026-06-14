@@ -10,6 +10,11 @@ metadata:
 spec:
   displayName: Grafana
   protocol: oauth2
+  group: Observability
+  icon: fa://fa-chart-line
+  publisher: Grafana Labs
+  description: Metrics, logs and trace dashboards
+  launchUrl: https://grafana.{{ .Values.domain }}
   groups:
     - Grafana Admins
     - Grafana Editors

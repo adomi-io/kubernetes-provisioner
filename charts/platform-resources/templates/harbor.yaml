@@ -10,6 +10,11 @@ metadata:
 spec:
   displayName: Harbor
   protocol: oauth2
+  group: Developer Tools
+  icon: fa://fa-docker
+  publisher: CNCF
+  description: Container and artifact registry
+  launchUrl: https://harbor.{{ .Values.domain }}
   redirectUris:
     - https://harbor.{{ .Values.domain }}/c/oidc/callback
   scopes:

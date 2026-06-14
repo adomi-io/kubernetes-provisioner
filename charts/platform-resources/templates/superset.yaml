@@ -9,6 +9,11 @@ metadata:
 spec:
   displayName: Superset
   protocol: oauth2
+  group: Analytics
+  icon: fa://fa-chart-bar
+  publisher: Apache Software Foundation
+  description: Business intelligence and data exploration
+  launchUrl: https://superset.{{ .Values.domain }}
   redirectUris:
     - https://superset.{{ .Values.domain }}/oauth-authorized/authentik
   scopes:

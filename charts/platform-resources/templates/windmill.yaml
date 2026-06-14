@@ -11,6 +11,11 @@ metadata:
 spec:
   displayName: Windmill
   protocol: oauth2
+  group: Automation
+  icon: fa://fa-wind
+  publisher: Windmill Labs
+  description: Scripts, flows and apps platform
+  launchUrl: https://windmill.{{ .Values.domain }}
   redirectUris:
     - https://windmill.{{ .Values.domain }}/user/login_callback/authentik
   scopes:
