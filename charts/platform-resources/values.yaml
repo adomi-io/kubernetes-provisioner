@@ -11,6 +11,7 @@ openbao:
 # Every app ingress references it to require an Authentik sign-in. The Middleware
 # must live in the same namespace as the ingress it protects.
 forwardAuthNamespaces:
+  - adomi-platform-management
   - argo
   - argocd
   - forgejo

@@ -122,7 +122,7 @@ openbao:
   # charts otherwise default to insecure or regenerate on every sync (Outline's
   # SECRET_KEY/UTILS_SECRET, Odoo's master password, Grafana's admin password,
   # Superset's secret key). External Secrets delivers them into each namespace.
-  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey"
+  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey management-app:admin-password"
   # Auto-unseal (kms mode): base64 HCL seal stanza + a service-account annotation.
   sealConfig: ""
   serviceAccountAnnotationKey: ""
@@ -140,6 +140,13 @@ platformController:
     repository: ghcr.io/adomi-io/adomi-platform-controller
     # Empty defaults to the chart appVersion. Pin to a published tag in prod.
     tag: ""
+# The Odoo management portal (adomi-platform-management-odoo). Deployed via the
+# adomi-helm odoo chart, installing the adomi_platform module on boot.
+platformManagement:
+  image:
+    repository: ghcr.io/adomi-io/adomi-platform-management-odoo
+    # Not a 19.0-style tag, so set it explicitly (the image is tagged latest/<sha>).
+    tag: latest
 authentikDb:
   instances: 1
   storageSize: 8Gi

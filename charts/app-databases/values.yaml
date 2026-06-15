@@ -38,6 +38,7 @@ namespaces:
   - vaultwarden
   - open-webui
   - litellm
+  - adomi-platform-management
 
 # One CloudNativePG Cluster per stateful component. CNPG generates the owner
 # password into <name>-app; the component reads <name>-rw + that Secret. Backups
@@ -45,6 +46,7 @@ namespaces:
 databases:
   - { name: forgejo-db,    namespace: forgejo,     database: forgejo,    owner: forgejo }
   - { name: harbor-db,     namespace: harbor,      database: harbor,     owner: harbor }
+  - { name: management-db, namespace: adomi-platform-management, database: odoo, owner: odoo }
   - { name: outline-db,    namespace: outline,     database: outline,    owner: outline }
   # Windmill's migrations grant to windmill_admin / windmill_user but its non-superuser
   # owner can't create them, so CNPG seeds the roles and grants them to the owner here.
@@ -138,6 +140,12 @@ externalSecrets:
   - name: harbor-admin
     namespace: harbor
     openbaoPath: harbor-app
+    data:
+      - { secretKey: admin-password, property: admin-password }
+  # Odoo management portal master/admin password, generated once by openbao-bootstrap.
+  - name: management-admin
+    namespace: adomi-platform-management
+    openbaoPath: management-app
     data:
       - { secretKey: admin-password, property: admin-password }
   # Outline's SECRET_KEY / UTILS_SECRET, generated once by openbao-bootstrap.
