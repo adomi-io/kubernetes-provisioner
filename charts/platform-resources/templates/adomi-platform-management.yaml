@@ -1,8 +1,8 @@
 # RBAC for the Odoo management portal. Its pod (ServiceAccount
 # adomi-platform-management, created by the odoo chart) reads and writes the
 # platform.adomi.io custom resources via the Kubernetes API, so it gets a
-# ClusterRole spanning those resources. (The portal uses Odoo's own login, not the
-# platform forward-auth.)
+# ClusterRole spanning those resources. (Sign-in is OIDC against Authentik via the
+# SSOApplication below — not the platform forward-auth.)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -34,3 +34,39 @@ subjects:
   - kind: ServiceAccount
     name: adomi-platform-management
     namespace: adomi-platform-management
+---
+# SSO for the portal itself. The controller reconciles this into an Authentik
+# OAuth2 provider/application (slug adomi-platform-management) and publishes the
+# management-sso Secret (client-id / client-secret) into the portal namespace. The
+# adomi_platform addon (which bundles OCA auth_oidc) reads those as env and seeds an
+# auth.oauth.provider, so users sign in to the portal with Authentik (OIDC).
+apiVersion: identity.adomi.io/v1alpha1
+kind: SSOApplication
+metadata:
+  name: adomi-platform-management
+  namespace: adomi-platform-management
+spec:
+  displayName: Adomi Platform
+  protocol: oauth2
+  group: Platform
+  icon: fa://fa-cubes
+  publisher: Adomi
+  description: Platform management portal (Clients, Workspaces, Applications)
+  launchUrl: https://platform.{{ .Values.domain }}
+  redirectUris:
+    # Odoo's OAuth/OIDC callback (auth_oauth / auth_oidc).
+    - https://platform.{{ .Values.domain }}/auth_oauth/signin
+  # The controller ensures this Authentik group exists; members get Odoo Settings
+  # (admin) access via the addon's group sync (others are internal users). Add
+  # members in Authentik. The name matches the addon's adomi_platform.oidc_admin_group.
+  groups:
+    - Platform Admins
+  scopes:
+    - openid
+    - profile
+    - email
+    - groups
+  credentials:
+    openbaoPath: management-sso
+    targetSecret:
+      name: management-sso
