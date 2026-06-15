@@ -26,6 +26,9 @@ spec:
         image:
           repository: {{ .Values.platformManagement.image.repository | quote }}
           tag: {{ .Values.platformManagement.image.tag | quote }}
+          # With a mutable tag (latest), always re-pull so a rollout picks up the
+          # newest image. Pin tag to a commit SHA for true GitOps rollouts.
+          pullPolicy: Always
         serviceAccount:
           create: true
           name: adomi-platform-management
@@ -45,8 +48,10 @@ spec:
         odoo:
           proxyMode: true
           withoutDemo: true
-          # Install the management addon on first boot.
+          # Install the addon on first boot, and upgrade it every boot so a new
+          # image actually applies model/view/security changes to the database.
           initModules: adomi_platform
+          updateModules: adomi_platform
         ingress:
           enabled: true
           className: {{ .Values.ingressClass | quote }}
