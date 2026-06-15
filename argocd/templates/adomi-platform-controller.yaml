@@ -47,11 +47,15 @@ spec:
           externalSecrets:
             clusterSecretStore: openbao
         # Application platform wiring. The base domain drives generated hostnames
-        # (<app>.<workspace>.<client>.<domain>) and the Harbor / webhook host
-        # fallbacks (harbor.<domain>, hooks.<domain>); the build/preview/snapshot
-        # features keep their chart defaults (enabled, argo namespace, etc.).
+        # (<app>-<workspace>-<client>.<domain>, one label so the *.<domain> wildcard
+        # cert/record covers it) and the Harbor / webhook host fallbacks
+        # (harbor.<domain>, hooks.<domain>); the build/preview/snapshot features keep
+        # their chart defaults. odooNotify points at the in-cluster management portal
+        # so the controller pushes status changes to it live (token from OpenBao).
         platform:
           baseDomain: {{ .Values.domain | quote }}
+          odooNotify:
+            url: http://adomi-platform-management-odoo.adomi-platform-management.svc.cluster.local:8069
   destination:
     server: https://kubernetes.default.svc
     namespace: adomi-system

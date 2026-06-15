@@ -122,7 +122,7 @@ openbao:
   # charts otherwise default to insecure or regenerate on every sync (Outline's
   # SECRET_KEY/UTILS_SECRET, Odoo's master password, Grafana's admin password,
   # Superset's secret key). External Secrets delivers them into each namespace.
-  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey management-app:admin-password"
+  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey management-app:admin-password adomi-ingest:token"
   # Auto-unseal (kms mode): base64 HCL seal stanza + a service-account annotation.
   sealConfig: ""
   serviceAccountAnnotationKey: ""

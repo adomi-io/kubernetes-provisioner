@@ -52,6 +52,15 @@ spec:
           # image actually applies model/view/security changes to the database.
           initModules: adomi_platform
           updateModules: adomi_platform
+        # Shared bearer token the platform controller authenticates its status
+        # pushes with (must match the controller's ODOO_NOTIFY token). Delivered by
+        # the adomi-ingest ExternalSecret (app-databases) from OpenBao.
+        extraEnv:
+          - name: ADOMI_INGEST_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: adomi-ingest
+                key: token
         ingress:
           enabled: true
           className: {{ .Values.ingressClass | quote }}

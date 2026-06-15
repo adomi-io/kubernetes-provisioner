@@ -148,6 +148,15 @@ externalSecrets:
     openbaoPath: management-app
     data:
       - { secretKey: admin-password, property: admin-password }
+  # Shared bearer token for controller -> portal status pushes. The controller
+  # reads the token straight from OpenBao (secret/adomi-ingest); the portal can't
+  # reach OpenBao, so deliver it here as the Secret it mounts as ADOMI_INGEST_TOKEN.
+  # Generated once by openbao-bootstrap at secret/adomi-ingest.
+  - name: adomi-ingest
+    namespace: adomi-platform-management
+    openbaoPath: adomi-ingest
+    data:
+      - { secretKey: token, property: token }
   # Outline's SECRET_KEY / UTILS_SECRET, generated once by openbao-bootstrap.
   - name: outline-secret
     namespace: outline
