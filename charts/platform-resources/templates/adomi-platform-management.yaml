@@ -1,8 +1,8 @@
 # RBAC for the Odoo management portal. Its pod (ServiceAccount
 # adomi-platform-management, created by the odoo chart) reads and writes the
 # platform.adomi.io custom resources via the Kubernetes API, so it gets a
-# ClusterRole spanning those resources. SSO is handled by the shared forward-auth
-# Middleware (the namespace is in forwardAuthNamespaces).
+# ClusterRole spanning those resources. (The portal uses Odoo's own login, not the
+# platform forward-auth.)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

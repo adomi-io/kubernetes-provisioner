@@ -1,8 +1,8 @@
 # The Adomi platform management portal: an Odoo instance (image
 # adomi-platform-management-odoo) deployed via the adomi-helm odoo chart, with the
 # adomi_platform module installed on boot. Its ServiceAccount is granted the
-# platform.adomi.io RBAC by platform-resources (wave 6); SSO is the shared
-# Authentik forward-auth. Lives at platform.<domain>.
+# platform.adomi.io RBAC by platform-resources (wave 6). Auth is Odoo's own login
+# (not the platform forward-auth). Lives at platform.<domain>.
 #
 # Wave 7 - after the controller + CRDs (wave 5), the catalog (wave 6) and its DB +
 # admin secret (app-databases, wave 5).
@@ -59,7 +59,6 @@ spec:
             enabled: true
           annotations:
             cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer | quote }}
-            traefik.ingress.kubernetes.io/router.middlewares: "adomi-platform-management-ak-forward-auth@kubernetescrd"
           tls:
             - hosts:
                 - platform.{{ .Values.domain }}
