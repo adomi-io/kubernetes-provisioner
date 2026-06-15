@@ -28,7 +28,6 @@ s3SecretPath: s3
 # Every namespace a platform component runs in. Created here (wave 5) so the
 # platform controller's SSOApplication Secrets land somewhere that exists.
 namespaces:
-  - odoo
   - monitoring        # kube-prometheus-stack (grafana/prometheus/alertmanager) + loki + tempo
   - uptime-kuma
   - forgejo
@@ -44,7 +43,6 @@ namespaces:
 # password into <name>-app; the component reads <name>-rw + that Secret. Backups
 # stream to s3://<bucket>/<name>, authenticated by the <name>-backup ExternalSecret.
 databases:
-  - { name: odoo-db,       namespace: odoo,        database: odoo,       owner: odoo }
   - { name: forgejo-db,    namespace: forgejo,     database: forgejo,    owner: forgejo }
   - { name: harbor-db,     namespace: harbor,      database: harbor,     owner: harbor }
   - { name: outline-db,    namespace: outline,     database: outline,    owner: outline }
@@ -136,12 +134,6 @@ externalSecrets:
     openbaoPath: litellm-app
     data:
       - { secretKey: masterkey, property: masterkey }
-  # Odoo's master/admin password, generated once by openbao-bootstrap.
-  - name: odoo-admin
-    namespace: odoo
-    openbaoPath: odoo-app
-    data:
-      - { secretKey: admin-password, property: admin-password }
   # Harbor's admin password (off the well-known default), seeded by openbao-bootstrap.
   - name: harbor-admin
     namespace: harbor

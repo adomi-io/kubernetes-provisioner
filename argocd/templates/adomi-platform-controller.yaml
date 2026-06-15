@@ -46,6 +46,12 @@ spec:
             signingKeyName: {{ .Values.authentik.signingKeyName | quote }}
           externalSecrets:
             clusterSecretStore: openbao
+        # Application platform wiring. The base domain drives generated hostnames
+        # (<app>.<workspace>.<client>.<domain>) and the Harbor / webhook host
+        # fallbacks (harbor.<domain>, hooks.<domain>); the build/preview/snapshot
+        # features keep their chart defaults (enabled, argo namespace, etc.).
+        platform:
+          baseDomain: {{ .Values.domain | quote }}
   destination:
     server: https://kubernetes.default.svc
     namespace: adomi-system

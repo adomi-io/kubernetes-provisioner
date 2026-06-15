@@ -1,0 +1,8 @@
+apiVersion: v2
+name: application-catalog
+description: |
+  Cluster-scoped ApplicationType catalog for the adomi-platform-controller. Each
+  entry maps an app type (odoo, mailpit, superset, ...) to the chart it deploys and
+  the code adapter that fills that chart's values.
+type: application
+version: 0.1.0

@@ -1,0 +1,15 @@
+# Chart sources for each ApplicationType. Overridden by the application-catalog
+# Argo CD Application from the provisioner's argocd/values.yaml `charts:` map.
+charts:
+  odoo:
+    repoURL: https://github.com/adomi-io/adomi-helm.git
+    path: charts/odoo
+    targetRevision: master
+  mailpit:
+    repoURL: https://github.com/adomi-io/adomi-helm.git
+    path: charts/mailpit
+    targetRevision: master
+  superset:
+    repoURL: https://apache.github.io/superset
+    chart: superset
+    version: 0.15.5

@@ -14,7 +14,7 @@ s3SecretPath: s3
 # Stable app secrets to generate once (only if absent), as a space-separated list
 # of "path:key1,key2" entries. Kept on dedicated paths, separate from any
 # controller-managed OAuth credentials.
-appSecrets: "outline-app:secret-key,utils-secret odoo-app:admin-password grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey"
+appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey"
 
 # adomi-platform-controller: a kubernetes-auth role + write policy so the platform
 # controller can authenticate as itself (no static token) to read the Authentik

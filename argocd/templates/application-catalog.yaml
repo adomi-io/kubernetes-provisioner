@@ -1,0 +1,50 @@
+# The Application catalog: cluster-scoped ApplicationType CRs that tell the
+# adomi-platform-controller which chart each app type deploys and how to adapt it.
+# Lives in this repo under charts/application-catalog.
+#
+# Wave 6 - after the controller + its CRDs (wave 5), so the ApplicationType CRD
+# exists, and before the platform apps (wave 7). Clients' Applications reference
+# these types by name.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: application-catalog
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.gitRepoURL | quote }}
+    targetRevision: {{ .Values.gitTargetRevision | quote }}
+    path: charts/application-catalog
+    helm:
+      valuesObject:
+        charts:
+          odoo:
+            repoURL: {{ .Values.charts.odoo.repoURL | quote }}
+            path: {{ .Values.charts.odoo.path | quote }}
+            targetRevision: {{ .Values.charts.odoo.targetRevision | quote }}
+          mailpit:
+            repoURL: {{ .Values.charts.odoo.repoURL | quote }}
+            path: charts/mailpit
+            targetRevision: {{ .Values.charts.odoo.targetRevision | quote }}
+          superset:
+            repoURL: {{ .Values.charts.superset.repoURL | quote }}
+            chart: {{ .Values.charts.superset.chart | quote }}
+            version: {{ .Values.charts.superset.version | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: adomi-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
