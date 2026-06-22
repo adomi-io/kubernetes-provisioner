@@ -56,7 +56,6 @@ charts:
     repoURL: https://github.com/adomi-io/adomi-helm.git
     path: charts/odoo
     targetRevision: master
-  # Grafana + Prometheus + Alertmanager in one chart.
   kubePrometheusStack:
     repoURL: https://prometheus-community.github.io/helm-charts
     chart: kube-prometheus-stack
@@ -117,16 +116,36 @@ openbao:
   kubernetesAuthRole: external-secrets
   authentikSecretPath: authentik
   argoWorkflowsSecretPath: argo-workflows
+  # OpenBao path holding the Forgejo service-account credentials (properties
+  # `token` + `username`) used by Argo CD (SCM generator + repo creds) and the Odoo
+  # portal to read/write tenant repos. Mint this token in Forgejo once and write it
+  # here — it cannot be auto-generated (see the README bootstrap step).
+  forgejoSecretPath: forgejo
   # Stable app secrets openbao-bootstrap generates once (only if absent), as a
   # space-separated list of "path:key1,key2". These back the boot secrets that
   # charts otherwise default to insecure or regenerate on every sync (Outline's
   # SECRET_KEY/UTILS_SECRET, Odoo's master password, Grafana's admin password,
   # Superset's secret key). External Secrets delivers them into each namespace.
-  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey management-app:admin-password adomi-ingest:token"
+  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey management-app:admin-password adomi-ingest:token adomi-platform-api:api-token"
   # Auto-unseal (kms mode): base64 HCL seal stanza + a service-account annotation.
   sealConfig: ""
   serviceAccountAnnotationKey: ""
   serviceAccountAnnotationValue: ""
+
+# Per-customer GitOps (workstream 3.1). Tenant repos live in the Forgejo `forgejoOrg`
+# (one repo per Client, named after the slug); the `tenants` ApplicationSet discovers
+# them and bootstraps an AppProject + root Application each. Argo CD and the SCM
+# generator reach Forgejo over the in-cluster Service (the public ingress is gated by
+# Authentik forward-auth), so clone URLs are built from forgejoCloneBase.
+tenants:
+  enabled: true
+  forgejoOrg: tenants
+  forgejoApi: http://forgejo-http.forgejo.svc.cluster.local:3000
+  forgejoCloneBase: http://forgejo-http.forgejo.svc.cluster.local:3000/tenants
+  forgejoInsecure: false
+  targetRevision: main
+  # Must match the Odoo addon's adomi_platform.tenant_namespace_prefix.
+  tenantNamespacePrefix: adomi-tenant-
 
 authentik:
   address: http://authentik-server.authentik.svc.cluster.local
@@ -139,6 +158,18 @@ platformController:
   image:
     repository: ghcr.io/adomi-io/adomi-platform-controller
     # Empty defaults to the chart appVersion. Pin to a published tag in prod.
+    tag: ""
+# The front-door API (adomi_platform_api): end users (via Odoo / the CLI / partner
+# UIs) POST resource intent here and it commits to each customer's tenant repo in
+# Forgejo. It ships from the platform-controller repo (the control plane: API +
+# operator share one schema); its chart lives there too. Image built from
+# Dockerfile.api. Enabled with the per-customer GitOps flow (tenants.enabled).
+platformApi:
+  repoURL: https://github.com/adomi-io/adomi-platform-controller.git
+  targetRevision: master
+  path: charts/adomi-platform-api
+  image:
+    repository: ghcr.io/adomi-io/adomi-platform-api
     tag: ""
 # The Odoo management portal (adomi-platform-management-odoo). Deployed via the
 # adomi-helm odoo chart, installing the adomi_platform module on boot.

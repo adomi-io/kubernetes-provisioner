@@ -1,0 +1,28 @@
+{{- if not .Values.client }}{{ fail "tenant chart requires .Values.client" }}{{- else }}
+# AppProject fencing customer {{ .Values.client }}: only their tenant repo, only
+# their namespaces, only the platform CRD kinds. This is the per-tenant isolation
+# boundary — a compromised/edited tenant repo cannot escape it.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: client-{{ .Values.client }}
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Tenant {{ .Values.client }}
+  sourceRepos:
+    - {{ .Values.repoURL | quote }}
+  destinations:
+    - server: {{ .Values.destinationServer | quote }}
+      namespace: {{ .Values.tenantNamespacePrefix }}{{ .Values.client }}
+    - server: {{ .Values.destinationServer | quote }}
+      namespace: {{ .Values.client }}-*
+  # No cluster-scoped resources may come from a tenant repo.
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    {{- range .Values.allowedGroups }}
+    - group: {{ . | quote }}
+      kind: "*"
+    {{- end }}
+{{- end }}

@@ -84,6 +84,20 @@ spec:
             value: adomi-platform-management
           - name: ADOMI_PORTAL_BASE_URL
             value: https://platform.{{ .Values.domain }}
+{{- if .Values.tenants.enabled }}
+          # Git is the source of truth: the portal is a thin client of the platform
+          # API, which commits tenant CRs to Forgejo. The API bearer token comes from
+          # the adomi-platform-api Secret (cluster-secrets ExternalSecret, OpenBao).
+          - name: ADOMI_WRITE_BACKEND
+            value: api
+          - name: ADOMI_PLATFORM_API_URL
+            value: http://adomi-platform-api.adomi-system.svc.cluster.local:8080
+          - name: ADOMI_PLATFORM_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: adomi-platform-api
+                key: api-token
+{{- end }}
         ingress:
           enabled: true
           className: {{ .Values.ingressClass | quote }}

@@ -1,0 +1,79 @@
+{{- if .Values.tenants.enabled }}
+# Per-customer GitOps (workstream 3.1). Comes up after Forgejo (wave 7) and the
+# platform controller (wave 5). The `tenants` ApplicationSet discovers every tenant
+# repo in the Forgejo org and, for each, bootstraps (in the privileged tenant-admin
+# project) an AppProject + root Application from charts/tenant — so a customer's
+# whole estate is reconstructable from git.
+#
+# Argo CD and the SCM generator talk to Forgejo over the in-cluster Service, NOT
+# git.<domain>: the public ingress is gated by Authentik forward-auth, which would
+# reject Argo's headless clone. Clone URLs are built from the repo name accordingly.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: tenant-admin
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Bootstraps per-tenant AppProjects + root Applications from charts/tenant.
+  sourceRepos:
+    - {{ .Values.gitRepoURL | quote }}
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: argoproj.io
+      kind: AppProject
+    - group: argoproj.io
+      kind: Application
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: tenants
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "8"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - scmProvider:
+        gitea:
+          owner: {{ .Values.tenants.forgejoOrg | quote }}
+          api: {{ .Values.tenants.forgejoApi | quote }}
+          allBranches: false
+          insecure: {{ .Values.tenants.forgejoInsecure }}
+          tokenRef:
+            secretName: forgejo-scm-token
+            key: token
+      # Only repos that carry tenant intent (a clients/ directory) are bootstrapped.
+        filters:
+          - pathsExist: [clients]
+  template:
+    metadata:
+      name: 'tenant-{{ `{{ .repository }}` }}-bootstrap'
+    spec:
+      project: tenant-admin
+      source:
+        repoURL: {{ .Values.gitRepoURL | quote }}
+        targetRevision: {{ .Values.gitTargetRevision | quote }}
+        path: charts/tenant
+        helm:
+          valuesObject:
+            client: '{{ `{{ .repository }}` }}'
+            repoURL: '{{ .Values.tenants.forgejoCloneBase }}/{{ `{{ .repository }}` }}.git'
+            targetRevision: {{ .Values.tenants.targetRevision | quote }}
+            tenantNamespacePrefix: {{ .Values.tenants.tenantNamespacePrefix | quote }}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+{{- end }}
