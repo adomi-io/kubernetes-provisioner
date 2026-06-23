@@ -117,16 +117,25 @@ openbao:
   authentikSecretPath: authentik
   argoWorkflowsSecretPath: argo-workflows
   # OpenBao path holding the Forgejo service-account credentials (properties
-  # `token` + `username`) used by Argo CD (SCM generator + repo creds) and the Odoo
-  # portal to read/write tenant repos. Mint this token in Forgejo once and write it
-  # here — it cannot be auto-generated (see the README bootstrap step).
-  forgejoSecretPath: forgejo
+  # `token` + `username`) used by Argo CD (SCM generator + repo creds), the platform
+  # API, and the Odoo portal to read/write tenant repos. The token is a real Forgejo
+  # API token (it can't be a random secret), minted automatically by openbao-bootstrap
+  # once Forgejo is up - see the `forgejoMint` wiring in the openbao-bootstrap app.
+  # Kept on its OWN path, distinct from secret/forgejo (the SSO OAuth client creds
+  # the platform controller owns) so the two never collide.
+  forgejoSecretPath: forgejo-scm
+  # OpenBao path for Forgejo's local admin password (a random secret seeded below).
+  # openbao-bootstrap logs in with it in-cluster to mint the service-account token;
+  # cluster-secrets/app-databases also delivers it to Forgejo's admin-init job.
+  forgejoAdminSecretPath: forgejo-admin
+  # Fixed username for that local admin (the account that owns the minted token).
+  forgejoAdminUser: adomi-admin
   # Stable app secrets openbao-bootstrap generates once (only if absent), as a
   # space-separated list of "path:key1,key2". These back the boot secrets that
   # charts otherwise default to insecure or regenerate on every sync (Outline's
   # SECRET_KEY/UTILS_SECRET, Odoo's master password, Grafana's admin password,
   # Superset's secret key). External Secrets delivers them into each namespace.
-  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey management-app:admin-password adomi-ingest:token adomi-platform-api:api-token"
+  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey management-app:admin-password adomi-ingest:token adomi-platform-api:api-token forgejo-admin:password"
   # Auto-unseal (kms mode): base64 HCL seal stanza + a service-account annotation.
   sealConfig: ""
   serviceAccountAnnotationKey: ""

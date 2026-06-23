@@ -30,6 +30,16 @@ spec:
         authentikSecretPath: {{ .Values.openbao.authentikSecretPath | quote }}
         s3SecretPath: {{ .Values.s3.secretPath | quote }}
         appSecrets: {{ .Values.openbao.appSecrets | quote }}
+        # Forgejo service-account token minting (per-customer GitOps only). The
+        # reconciler logs in to Forgejo with the local admin and writes the minted
+        # token to secret/<scmPath>; cluster-secrets delivers it from there.
+        forgejoMint:
+          enabled: {{ .Values.tenants.enabled }}
+          addr: {{ .Values.tenants.forgejoApi | quote }}
+          org: {{ .Values.tenants.forgejoOrg | quote }}
+          adminPath: {{ .Values.openbao.forgejoAdminSecretPath | quote }}
+          adminUser: {{ .Values.openbao.forgejoAdminUser | quote }}
+          scmPath: {{ .Values.openbao.forgejoSecretPath | quote }}
   destination:
     server: https://kubernetes.default.svc
     namespace: openbao

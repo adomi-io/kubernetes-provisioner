@@ -116,6 +116,17 @@ externalSecrets:
     data:
       - { secretKey: key,    property: client-id }
       - { secretKey: secret, property: client-secret }
+  # Forgejo's local admin (real user auth is Authentik forward-auth; this account
+  # exists only so openbao-bootstrap can mint the per-customer GitOps service token
+  # in-cluster). Random password from OpenBao + a fixed username; consumed by the
+  # chart's gitea.admin.existingSecret (keys username / password).
+  - name: forgejo-admin
+    namespace: forgejo
+    openbaoPath: forgejo-admin
+    literals:
+      username: adomi-admin
+    data:
+      - { secretKey: password, property: password }
   # Grafana's local admin: random password from OpenBao + a fixed admin username.
   - name: grafana-admin
     namespace: monitoring

@@ -303,7 +303,13 @@ The **`openbao-bootstrap`** reconciler configures OpenBao after `helmfile apply`
 - creates the read/write policy + role the **adomi-platform-controller** logs in as (read on the Authentik path, read/write on the
   per-app credential paths);
 - seeds Authentik's `secret_key` and an API `bootstrap-token` at `secret/authentik`, and the object store's `access-key` /
-  `secret-key` at `secret/s3` - each generated randomly, **only if it isn't already there**.
+  `secret-key` at `secret/s3` - each generated randomly, **only if it isn't already there**;
+- when per-customer GitOps is on (`tenants.enabled`), mints the **Forgejo service-account token**: it logs in to Forgejo with the
+  local admin (random password seeded at `secret/forgejo-admin`, also handed to Forgejo's admin-init by cluster-secrets), ensures the
+  tenant org, mints a scoped API token, and stores `{username, token}` at `secret/forgejo-scm` - the credential Argo CD (SCM
+  generator + repo creds) and the platform API use to read/write tenant repos. This token is a *real* Forgejo token (it can't be a
+  random secret), so it's minted via the API rather than generated; kept on its own path, separate from `secret/forgejo` (the SSO
+  OAuth client creds the controller owns). Forgejo comes up after this reconciler, so it simply retries until Forgejo is ready.
 
 It's idempotent: it never re-initialises an initialised OpenBao and never overwrites a secret that already exists. (Authentik's
 database password isn't in here - CloudNativePG generates and manages that.)

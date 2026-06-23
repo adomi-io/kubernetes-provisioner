@@ -46,6 +46,18 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            {{- if .Values.forgejoMint.enabled }}
+            - name: FORGEJO_ADDR
+              value: {{ .Values.forgejoMint.addr | quote }}
+            - name: FORGEJO_ORG
+              value: {{ .Values.forgejoMint.org | quote }}
+            - name: FORGEJO_ADMIN_PATH
+              value: {{ .Values.forgejoMint.adminPath | quote }}
+            - name: FORGEJO_ADMIN_USER
+              value: {{ .Values.forgejoMint.adminUser | quote }}
+            - name: FORGEJO_SCM_PATH
+              value: {{ .Values.forgejoMint.scmPath | quote }}
+            {{- end }}
           resources:
             requests:
               cpu: 10m

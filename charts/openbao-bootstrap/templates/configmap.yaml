@@ -138,6 +138,50 @@ data:
         seed_app_secret "$p" $keys
       done
 
+      # Mint the Forgejo service-account API token for the per-customer GitOps flow.
+      # Unlike the seeds above this can't be a random value - it must be a real
+      # Forgejo token - so we log in as the local admin (password from FORGEJO_ADMIN_PATH,
+      # seeded above and delivered to Forgejo by cluster-secrets), ensure the tenant
+      # org exists, mint a scoped token, and store {username, token} at FORGEJO_SCM_PATH
+      # where cluster-secrets reads it. Idempotent: skipped once the path holds a token.
+      # Forgejo comes up after this app, so early iterations just retry until it's ready.
+      if [ -n "${FORGEJO_ADDR:-}" ]; then
+        tok=""
+        code=$(curl -s -H "$TH" -o /dev/null -w '%{http_code}' "$BAO_ADDR/v1/$KV_MOUNT/data/$FORGEJO_SCM_PATH")
+        [ "$code" = "200" ] && tok=$(curl -s -H "$TH" "$BAO_ADDR/v1/$KV_MOUNT/data/$FORGEJO_SCM_PATH" | jq -r '.data.data.token // empty')
+        if [ -n "$tok" ]; then
+          log "secret/$FORGEJO_SCM_PATH already has a token; leaving it"
+        else
+          apw=$(curl -s -H "$TH" "$BAO_ADDR/v1/$KV_MOUNT/data/$FORGEJO_ADMIN_PATH" | jq -r '.data.data.password // empty')
+          au=$(curl -s -o /dev/null -w '%{http_code}' -u "$FORGEJO_ADMIN_USER:$apw" "$FORGEJO_ADDR/api/v1/user")
+          if [ -z "$apw" ]; then
+            log "forgejo admin password not seeded yet; will retry"
+          elif [ "$au" != "200" ]; then
+            log "forgejo admin not ready (HTTP $au); will retry"
+          else
+            # Ensure the tenant org exists (409 if it already does - harmless).
+            curl -s -H 'Content-Type: application/json' -u "$FORGEJO_ADMIN_USER:$apw" \
+              -X POST "$FORGEJO_ADDR/api/v1/orgs" \
+              -d "$(jq -n --arg u "$FORGEJO_ORG" '{username:$u,visibility:"private"}')" >/dev/null
+            # OpenBao is the source of truth; drop any orphaned same-named token first
+            # so a re-mint after the OpenBao value was lost doesn't 400 on "exists".
+            curl -s -u "$FORGEJO_ADMIN_USER:$apw" \
+              -X DELETE "$FORGEJO_ADDR/api/v1/users/$FORGEJO_ADMIN_USER/tokens/adomi-scm" >/dev/null
+            resp=$(curl -s -H 'Content-Type: application/json' -u "$FORGEJO_ADMIN_USER:$apw" \
+              -X POST "$FORGEJO_ADDR/api/v1/users/$FORGEJO_ADMIN_USER/tokens" \
+              -d '{"name":"adomi-scm","scopes":["write:organization","write:repository","read:user"]}')
+            new=$(echo "$resp" | jq -r '.sha1 // empty')
+            if [ -n "$new" ]; then
+              curl -s -H "$TH" -X POST "$BAO_ADDR/v1/$KV_MOUNT/data/$FORGEJO_SCM_PATH" \
+                -d "$(jq -n --arg u "$FORGEJO_ADMIN_USER" --arg t "$new" '{data:{username:$u,token:$t}}')" >/dev/null
+              log "minted Forgejo token and stored it at secret/$FORGEJO_SCM_PATH"
+            else
+              log "forgejo token mint failed: $resp"
+            fi
+          fi
+        fi
+      fi
+
       log "reconciled OK"
       sleep 60
     done

@@ -20,6 +20,15 @@ spec:
     helm:
       valuesObject:
         gitea:
+          # Local admin account. End-user auth is Authentik forward-auth; this
+          # account exists only so openbao-bootstrap can mint the per-customer GitOps
+          # service token in-cluster. Username/password come from the forgejo-admin
+          # Secret (delivered by cluster-secrets from OpenBao); keepUpdated re-applies
+          # the password on each sync so Forgejo and OpenBao never drift.
+          admin:
+            existingSecret: forgejo-admin
+            email: admin@{{ .Values.domain }}
+            passwordMode: keepUpdated
           config:
             server:
               DOMAIN: git.{{ .Values.domain }}
@@ -47,6 +56,10 @@ spec:
               REVERSE_PROXY_AUTHENTICATION_FULL_NAME: X-authentik-name
               # Trust any source for the header - in-cluster only, fronted by Traefik.
               REVERSE_PROXY_TRUSTED_PROXIES: "*"
+              # The local admin password is a random hex string seeded in OpenBao,
+              # which has no upper/special chars - turn off complexity so the chart's
+              # admin-init accepts it. The account is in-cluster only (forward-auth).
+              PASSWORD_COMPLEXITY: "off"
           # DB password injected from the CNPG-managed Secret (no value in git).
           additionalConfigFromEnvs:
             - name: FORGEJO__DATABASE__PASSWD
