@@ -1,5 +1,5 @@
 # The Adomi platform management portal: an Odoo instance (image
-# adomi-platform-management-odoo) deployed via the adomi-helm odoo chart, with the
+# adomi-platform-management) deployed via the adomi-helm odoo chart, with the
 # adomi_platform module installed on boot. Its ServiceAccount is granted the
 # platform.adomi.io RBAC by platform-resources (wave 6). Auth is Odoo's own login
 # (not the platform forward-auth). Lives at platform.<domain>.
@@ -23,6 +23,10 @@ spec:
     path: {{ .Values.charts.odoo.path | quote }}
     helm:
       valuesObject:
+        # Name every resource (Deployment, Service, Ingress, PVC) plainly after the
+        # portal rather than the odoo chart's default <release>-odoo, so the Service
+        # DNS is adomi-platform-management.adomi-platform-management.svc.
+        fullnameOverride: adomi-platform-management
         image:
           repository: {{ .Values.platformManagement.image.repository | quote }}
           tag: {{ .Values.platformManagement.image.tag | quote }}

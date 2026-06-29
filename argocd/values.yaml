@@ -180,11 +180,11 @@ platformApi:
   image:
     repository: ghcr.io/adomi-io/adomi-platform-api
     tag: ""
-# The Odoo management portal (adomi-platform-management-odoo). Deployed via the
+# The Odoo management portal (adomi-platform-management). Deployed via the
 # adomi-helm odoo chart, installing the adomi_platform module on boot.
 platformManagement:
   image:
-    repository: ghcr.io/adomi-io/adomi-platform-management-odoo
+    repository: ghcr.io/adomi-io/adomi-platform-management
     # Not a 19.0-style tag, so set it explicitly (the image is tagged latest/<sha>).
     tag: latest
 authentikDb:

@@ -55,7 +55,7 @@ spec:
         platform:
           baseDomain: {{ .Values.domain | quote }}
           odooNotify:
-            url: http://adomi-platform-management-odoo.adomi-platform-management.svc.cluster.local:8069
+            url: http://adomi-platform-management.adomi-platform-management.svc.cluster.local:8069
   destination:
     server: https://kubernetes.default.svc
     namespace: adomi-system
