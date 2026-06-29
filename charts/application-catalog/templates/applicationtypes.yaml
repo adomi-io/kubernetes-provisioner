@@ -79,3 +79,42 @@ spec:
     required: true
   provides:
     - url
+---
+apiVersion: platform.adomi.io/v1alpha1
+kind: ApplicationType
+metadata:
+  name: open-webui
+spec:
+  displayName: Open WebUI
+  adapter: generic
+  chart:
+    repoURL: {{ .Values.charts.openWebui.repoURL | quote }}
+    path: {{ .Values.charts.openWebui.path | quote }}
+    targetRevision: {{ .Values.charts.openWebui.targetRevision | quote }}
+  database:
+    required: true
+  sso:
+    enabled: true
+    protocol: oauth2
+    redirectPaths:
+      - /oauth/oidc/callback
+  provides:
+    - url
+---
+apiVersion: platform.adomi.io/v1alpha1
+kind: ApplicationType
+metadata:
+  name: uptime-kuma
+spec:
+  displayName: Uptime Kuma
+  adapter: generic
+  chart:
+    repoURL: {{ .Values.charts.uptimeKuma.repoURL | quote }}
+    path: {{ .Values.charts.uptimeKuma.path | quote }}
+    targetRevision: {{ .Values.charts.uptimeKuma.targetRevision | quote }}
+  # Embedded SQLite on a PVC — no platform Database. Native local login; platform
+  # SSO is optional (a proxy SSOApplication fronting the host with forward-auth).
+  database:
+    required: false
+  provides:
+    - url

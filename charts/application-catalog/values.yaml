@@ -17,3 +17,11 @@ charts:
     repoURL: https://github.com/adomi-io/adomi-helm.git
     path: charts/vaultwarden
     targetRevision: master
+  openWebui:
+    repoURL: https://github.com/adomi-io/adomi-helm.git
+    path: charts/open-webui
+    targetRevision: master
+  uptimeKuma:
+    repoURL: https://github.com/adomi-io/adomi-helm.git
+    path: charts/uptime-kuma
+    targetRevision: master
