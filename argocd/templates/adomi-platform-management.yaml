@@ -36,40 +36,50 @@ spec:
         serviceAccount:
           create: true
           name: adomi-platform-management
-        postgresql:
-          enabled: false
-        database:
-          host: management-db-rw
-          port: 5432
-          name: odoo
-          user: odoo
-          existingSecret: management-db-app
-          existingSecretKey: password
-          sslmode: require
-        adminPassword:
-          existingSecret: management-admin
-          existingSecretKey: admin-password
         odoo:
           proxyMode: true
           withoutDemo: true
+          # The portal sits behind OIDC; don't expose the database manager.
+          listDb: false
           # Install the addon on first boot, and upgrade it every boot so a new
           # image actually applies model/view/security changes to the database.
           initModules: adomi_platform
           updateModules: adomi_platform
-        # Shared bearer token the platform controller authenticates its status
-        # pushes with (must match the controller's ODOO_NOTIFY token). Delivered by
-        # the adomi-ingest ExternalSecret (app-databases) from OpenBao.
-        extraEnv:
+        # The odoo chart is a pure 12-factor consumer (capabilities model): the DB
+        # connection and every secret are wired explicitly via env. The database is
+        # the standalone CloudNativePG management-db; secrets come from OpenBao via
+        # ExternalSecrets (app-databases / cluster-secrets).
+        env:
+          - name: ODOO_DB_HOST
+            value: management-db-rw
+          - name: ODOO_DB_PORT
+            value: "5432"
+          - name: ODOO_DB_USER
+            value: odoo
+          - name: ODOO_DB_NAME
+            value: odoo
+          - name: ODOO_DB_SSLMODE
+            value: require
+          - name: ODOO_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: management-db-app
+                key: password
+          - name: ODOO_ADMIN_PASSWD
+            valueFrom:
+              secretKeyRef:
+                name: management-admin
+                key: admin-password
+          # Shared bearer token the platform controller authenticates its status
+          # pushes with (must match the controller's ODOO_NOTIFY token).
           - name: ADOMI_INGEST_TOKEN
             valueFrom:
               secretKeyRef:
                 name: adomi-ingest
                 key: token
           # OIDC sign-in against Authentik. The management-sso Secret is published by
-          # the controller from the SSOApplication (platform-resources); optional so
-          # the pod still starts if SSO hasn't reconciled yet (the addon then skips
-          # seeding until the creds exist). Endpoints are built from the auth host +
-          # app slug by the adomi_platform addon.
+          # the controller from the SSOApplication; optional so the pod still starts
+          # if SSO hasn't reconciled yet (the addon skips seeding until creds exist).
           - name: ADOMI_OIDC_CLIENT_ID
             valueFrom:
               secretKeyRef:
