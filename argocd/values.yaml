@@ -89,9 +89,9 @@ charts:
     chart: windmill
     version: 4.0.175
   superset:
-    repoURL: https://apache.github.io/superset
-    chart: superset
-    version: 0.15.5
+    repoURL: https://github.com/adomi-io/adomi-helm.git
+    path: charts/superset
+    targetRevision: master
   vaultwarden:
     repoURL: https://guerzon.github.io/vaultwarden
     chart: vaultwarden

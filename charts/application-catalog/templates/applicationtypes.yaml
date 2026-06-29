@@ -50,8 +50,8 @@ spec:
   adapter: superset
   chart:
     repoURL: {{ .Values.charts.superset.repoURL | quote }}
-    chart: {{ .Values.charts.superset.chart | quote }}
-    targetRevision: {{ .Values.charts.superset.version | quote }}
+    path: {{ .Values.charts.superset.path | quote }}
+    targetRevision: {{ .Values.charts.superset.targetRevision | quote }}
   database:
     required: true
   sso:
