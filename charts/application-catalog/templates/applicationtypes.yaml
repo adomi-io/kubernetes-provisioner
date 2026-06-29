@@ -63,3 +63,19 @@ spec:
     - url
   consumes:
     - odoo-superset-datasource
+---
+apiVersion: platform.adomi.io/v1alpha1
+kind: ApplicationType
+metadata:
+  name: vaultwarden
+spec:
+  displayName: Vaultwarden
+  adapter: generic
+  chart:
+    repoURL: {{ .Values.charts.vaultwarden.repoURL | quote }}
+    path: {{ .Values.charts.vaultwarden.path | quote }}
+    targetRevision: {{ .Values.charts.vaultwarden.targetRevision | quote }}
+  database:
+    required: true
+  provides:
+    - url

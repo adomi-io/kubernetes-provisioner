@@ -13,3 +13,7 @@ charts:
     repoURL: https://github.com/adomi-io/adomi-helm.git
     path: charts/superset
     targetRevision: master
+  vaultwarden:
+    repoURL: https://github.com/adomi-io/adomi-helm.git
+    path: charts/vaultwarden
+    targetRevision: master
