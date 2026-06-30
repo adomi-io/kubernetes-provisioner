@@ -118,3 +118,26 @@ spec:
     required: false
   provides:
     - url
+---
+apiVersion: platform.adomi.io/v1alpha1
+kind: ApplicationType
+metadata:
+  name: windmill
+spec:
+  displayName: Windmill
+  adapter: generic
+  chart:
+    repoURL: {{ .Values.charts.windmill.repoURL | quote }}
+    path: {{ .Values.charts.windmill.path | quote }}
+    targetRevision: {{ .Values.charts.windmill.targetRevision | quote }}
+  database:
+    required: true
+  # OSS Windmill wires OAuth at runtime in the superadmin UI; the platform just
+  # pre-provisions the Authentik app + windmill-sso credentials.
+  sso:
+    enabled: true
+    protocol: oauth2
+    redirectPaths:
+      - /user/login_callback/authentik
+  provides:
+    - url
