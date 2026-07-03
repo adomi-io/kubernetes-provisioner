@@ -169,7 +169,7 @@ data:
               -X DELETE "$FORGEJO_ADDR/api/v1/users/$FORGEJO_ADMIN_USER/tokens/adomi-scm" >/dev/null
             resp=$(curl -s -H 'Content-Type: application/json' -u "$FORGEJO_ADMIN_USER:$apw" \
               -X POST "$FORGEJO_ADDR/api/v1/users/$FORGEJO_ADMIN_USER/tokens" \
-              -d '{"name":"adomi-scm","scopes":["write:organization","write:repository","read:user"]}')
+              -d '{"name":"adomi-scm","scopes":["write:organization","write:repository","read:user","read:issue"]}')
             new=$(echo "$resp" | jq -r '.sha1 // empty')
             if [ -n "$new" ]; then
               curl -s -H "$TH" -X POST "$BAO_ADDR/v1/$KV_MOUNT/data/$FORGEJO_SCM_PATH" \

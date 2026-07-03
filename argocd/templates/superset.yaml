@@ -15,8 +15,8 @@ spec:
   project: default
   source:
     repoURL: {{ .Values.charts.superset.repoURL | quote }}
-    chart: {{ .Values.charts.superset.chart | quote }}
-    targetRevision: {{ .Values.charts.superset.version | quote }}
+    path: {{ .Values.charts.superset.path | quote }}
+    targetRevision: {{ .Values.charts.superset.targetRevision | quote }}
     helm:
       valuesObject:
         # The apache/superset image ships without a Postgres driver or authlib (the
