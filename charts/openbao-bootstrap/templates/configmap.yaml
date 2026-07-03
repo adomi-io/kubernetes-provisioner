@@ -141,7 +141,7 @@ data:
       # Mint the Forgejo service-account API token for the per-customer GitOps flow.
       # Unlike the seeds above this can't be a random value - it must be a real
       # Forgejo token - so we log in as the local admin (password from FORGEJO_ADMIN_PATH,
-      # seeded above and delivered to Forgejo by cluster-secrets), ensure the tenant
+      # seeded above and delivered to Forgejo by cluster-secrets), ensure the client
       # org exists, mint a scoped token, and store {username, token} at FORGEJO_SCM_PATH
       # where cluster-secrets reads it. Idempotent: skipped once the path holds a token.
       # Forgejo comes up after this app, so early iterations just retry until it's ready.
@@ -159,7 +159,7 @@ data:
           elif [ "$au" != "200" ]; then
             log "forgejo admin not ready (HTTP $au); will retry"
           else
-            # Ensure the tenant org exists (409 if it already does - harmless).
+            # Ensure the client org exists (409 if it already does - harmless).
             curl -s -H 'Content-Type: application/json' -u "$FORGEJO_ADMIN_USER:$apw" \
               -X POST "$FORGEJO_ADDR/api/v1/orgs" \
               -d "$(jq -n --arg u "$FORGEJO_ORG" '{username:$u,visibility:"private"}')" >/dev/null

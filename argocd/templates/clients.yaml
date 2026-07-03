@@ -1,8 +1,8 @@
-{{- if .Values.tenants.enabled }}
+{{- if .Values.clients.enabled }}
 # Per-customer GitOps (workstream 3.1). Comes up after Forgejo (wave 7) and the
-# platform controller (wave 5). The `tenants` ApplicationSet discovers every tenant
-# repo in the Forgejo org and, for each, bootstraps (in the privileged tenant-admin
-# project) an AppProject + root Application from charts/tenant — so a customer's
+# platform controller (wave 5). The `clients` ApplicationSet discovers every client
+# repo in the Forgejo org and, for each, bootstraps (in the privileged client-admin
+# project) an AppProject + root Application from charts/client — so a customer's
 # whole estate is reconstructable from git.
 #
 # Argo CD and the SCM generator talk to Forgejo over the in-cluster Service, NOT
@@ -11,14 +11,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
-  name: tenant-admin
+  name: client-admin
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "8"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  description: Bootstraps per-tenant AppProjects + root Applications from charts/tenant.
+  description: Bootstraps per-client AppProjects + root Applications from charts/client.
   sourceRepos:
     - {{ .Values.gitRepoURL | quote }}
   destinations:
@@ -34,7 +34,7 @@ spec:
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: tenants
+  name: clients
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "8"
@@ -44,31 +44,31 @@ spec:
   generators:
     - scmProvider:
         gitea:
-          owner: {{ .Values.tenants.forgejoOrg | quote }}
-          api: {{ .Values.tenants.forgejoApi | quote }}
+          owner: {{ .Values.clients.forgejoOrg | quote }}
+          api: {{ .Values.clients.forgejoApi | quote }}
           allBranches: false
-          insecure: {{ .Values.tenants.forgejoInsecure }}
+          insecure: {{ .Values.clients.forgejoInsecure }}
           tokenRef:
             secretName: forgejo-scm-token
             key: token
-      # Only repos that carry tenant intent (a clients/ directory) are bootstrapped.
+      # Only repos that carry client intent (a clients/ directory) are bootstrapped.
         filters:
           - pathsExist: [clients]
   template:
     metadata:
-      name: 'tenant-{{ `{{ .repository }}` }}-bootstrap'
+      name: 'client-{{ `{{ .repository }}` }}-bootstrap'
     spec:
-      project: tenant-admin
+      project: client-admin
       source:
         repoURL: {{ .Values.gitRepoURL | quote }}
         targetRevision: {{ .Values.gitTargetRevision | quote }}
-        path: charts/tenant
+        path: charts/client
         helm:
           valuesObject:
             client: '{{ `{{ .repository }}` }}'
-            repoURL: '{{ .Values.tenants.forgejoCloneBase }}/{{ `{{ .repository }}` }}.git'
-            targetRevision: {{ .Values.tenants.targetRevision | quote }}
-            tenantNamespacePrefix: {{ .Values.tenants.tenantNamespacePrefix | quote }}
+            repoURL: '{{ .Values.clients.forgejoCloneBase }}/{{ `{{ .repository }}` }}.git'
+            targetRevision: {{ .Values.clients.targetRevision | quote }}
+            clientNamespacePrefix: {{ .Values.clients.clientNamespacePrefix | quote }}
       destination:
         server: https://kubernetes.default.svc
         namespace: argocd

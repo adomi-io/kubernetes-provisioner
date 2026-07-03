@@ -11,7 +11,7 @@ openbao:
 s3SecretPath: s3
 
 # Per-customer GitOps. When enabled, deliver the Forgejo service-account token to
-# Argo CD (SCM generator + repo creds) so it can discover and clone tenant repos.
-tenants:
+# Argo CD (SCM generator + repo creds) so it can discover and clone client repos.
+clients:
   enabled: true
-  forgejoCloneBase: http://forgejo-http.forgejo.svc.cluster.local:3000/tenants
+  forgejoCloneBase: http://forgejo-http.forgejo.svc.cluster.local:3000/clients

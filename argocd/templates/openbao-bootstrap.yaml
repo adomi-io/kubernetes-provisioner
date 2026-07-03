@@ -34,9 +34,9 @@ spec:
         # reconciler logs in to Forgejo with the local admin and writes the minted
         # token to secret/<scmPath>; cluster-secrets delivers it from there.
         forgejoMint:
-          enabled: {{ .Values.tenants.enabled }}
-          addr: {{ .Values.tenants.forgejoApi | quote }}
-          org: {{ .Values.tenants.forgejoOrg | quote }}
+          enabled: {{ .Values.clients.enabled }}
+          addr: {{ .Values.clients.forgejoApi | quote }}
+          org: {{ .Values.clients.forgejoOrg | quote }}
           adminPath: {{ .Values.openbao.forgejoAdminSecretPath | quote }}
           adminUser: {{ .Values.openbao.forgejoAdminUser | quote }}
           scmPath: {{ .Values.openbao.forgejoSecretPath | quote }}

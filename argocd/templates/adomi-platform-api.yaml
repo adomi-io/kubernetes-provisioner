@@ -1,6 +1,6 @@
-{{- if .Values.tenants.enabled }}
+{{- if .Values.clients.enabled }}
 # The producer API (adomi-platform-api): turns resource intent from Odoo / the CLI /
-# partner UIs into commits in each customer's tenant repo (Forgejo). Lives in
+# partner UIs into commits in each customer's client repo (Forgejo). Lives in
 # adomi-system beside the controller. Wave 7 — after the controller (5), the catalog
 # (6), and its Secret (adomi-platform-api, from cluster-secrets, wave 3).
 apiVersion: argoproj.io/v1alpha1
@@ -25,9 +25,9 @@ spec:
           tag: {{ .Values.platformApi.image.tag | quote }}
           pullPolicy: Always
         forgejo:
-          url: {{ .Values.tenants.forgejoApi | quote }}
-          org: {{ .Values.tenants.forgejoOrg | quote }}
-        tenantNamespacePrefix: {{ .Values.tenants.tenantNamespacePrefix | quote }}
+          url: {{ .Values.clients.forgejoApi | quote }}
+          org: {{ .Values.clients.forgejoOrg | quote }}
+        clientNamespacePrefix: {{ .Values.clients.clientNamespacePrefix | quote }}
         # api-token + forgejo-token, delivered by cluster-secrets from OpenBao.
         auth:
           existingSecret: adomi-platform-api

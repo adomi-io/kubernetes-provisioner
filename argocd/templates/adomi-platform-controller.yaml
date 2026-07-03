@@ -47,7 +47,7 @@ spec:
           externalSecrets:
             clusterSecretStore: openbao
         # Application platform wiring. The base domain drives generated hostnames
-        # (<app>-<workspace>-<client>.<domain>, one label so the *.<domain> wildcard
+        # (<app>-<environment>-<client>.<domain>, one label so the *.<domain> wildcard
         # cert/record covers it) and the Harbor / webhook host fallbacks
         # (harbor.<domain>, hooks.<domain>); the build/preview/snapshot features keep
         # their chart defaults. odooNotify points at the in-cluster management portal

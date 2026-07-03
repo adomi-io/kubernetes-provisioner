@@ -12,7 +12,7 @@ rules:
     resources:
       - organizations
       - clients
-      - workspaces
+      - environments
       - applications
       - applicationtypes
       - gitrepositories
@@ -53,7 +53,7 @@ spec:
   group: Platform
   icon: fa://fa-cubes
   publisher: Adomi
-  description: Platform management portal (Clients, Workspaces, Applications)
+  description: Platform management portal (Clients, Environments, Applications)
   launchUrl: https://platform.{{ .Values.domain }}
   redirectUris:
     # Odoo's OAuth/OIDC callback (auth_oauth / auth_oidc).

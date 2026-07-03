@@ -26,15 +26,15 @@ controllerNamespace: adomi-system
 
 # Forgejo service-account token minting (per-customer GitOps). When enabled, the
 # reconciler logs in to Forgejo with the local admin (password at adminPath, also
-# delivered to Forgejo's admin-init job by cluster-secrets), ensures the tenant org
+# delivered to Forgejo's admin-init job by cluster-secrets), ensures the client org
 # exists, mints a scoped API token, and writes {username, token} to scmPath in
-# OpenBao - the credential Argo CD and the platform API use to read/write tenant
+# OpenBao - the credential Argo CD and the platform API use to read/write client
 # repos. Idempotent: skipped once scmPath already holds a token. Self-heals if the
 # OpenBao value is lost but a same-named Forgejo token still lingers.
 forgejoMint:
   enabled: false
   addr: ""                    # in-cluster Forgejo API base URL
-  org: tenants                # org the tenant repos live under (created if absent)
+  org: clients                # org the client repos live under (created if absent)
   adminPath: forgejo-admin    # OpenBao path with the admin `password`
   adminUser: adomi-admin      # local admin username (owner of the minted token)
   scmPath: forgejo-scm        # OpenBao path to write {username, token} to

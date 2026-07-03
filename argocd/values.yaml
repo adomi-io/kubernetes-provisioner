@@ -118,7 +118,7 @@ openbao:
   argoWorkflowsSecretPath: argo-workflows
   # OpenBao path holding the Forgejo service-account credentials (properties
   # `token` + `username`) used by Argo CD (SCM generator + repo creds), the platform
-  # API, and the Odoo portal to read/write tenant repos. The token is a real Forgejo
+  # API, and the Odoo portal to read/write client repos. The token is a real Forgejo
   # API token (it can't be a random secret), minted automatically by openbao-bootstrap
   # once Forgejo is up - see the `forgejoMint` wiring in the openbao-bootstrap app.
   # Kept on its OWN path, distinct from secret/forgejo (the SSO OAuth client creds
@@ -141,20 +141,20 @@ openbao:
   serviceAccountAnnotationKey: ""
   serviceAccountAnnotationValue: ""
 
-# Per-customer GitOps (workstream 3.1). Tenant repos live in the Forgejo `forgejoOrg`
-# (one repo per Client, named after the slug); the `tenants` ApplicationSet discovers
+# Per-customer GitOps (workstream 3.1). Client repos live in the Forgejo `forgejoOrg`
+# (one repo per Client, named after the slug); the `clients` ApplicationSet discovers
 # them and bootstraps an AppProject + root Application each. Argo CD and the SCM
 # generator reach Forgejo over the in-cluster Service (the public ingress is gated by
 # Authentik forward-auth), so clone URLs are built from forgejoCloneBase.
-tenants:
+clients:
   enabled: true
-  forgejoOrg: tenants
+  forgejoOrg: clients
   forgejoApi: http://forgejo-http.forgejo.svc.cluster.local:3000
-  forgejoCloneBase: http://forgejo-http.forgejo.svc.cluster.local:3000/tenants
+  forgejoCloneBase: http://forgejo-http.forgejo.svc.cluster.local:3000/clients
   forgejoInsecure: false
   targetRevision: main
-  # Must match the Odoo addon's adomi_platform.tenant_namespace_prefix.
-  tenantNamespacePrefix: adomi-tenant-
+  # Must match the Odoo addon's adomi_platform.client_namespace_prefix.
+  clientNamespacePrefix: adomi-client-
 
 authentik:
   address: http://authentik-server.authentik.svc.cluster.local
@@ -169,10 +169,10 @@ platformController:
     # Empty defaults to the chart appVersion. Pin to a published tag in prod.
     tag: ""
 # The front-door API (adomi_platform_api): end users (via Odoo / the CLI / partner
-# UIs) POST resource intent here and it commits to each customer's tenant repo in
+# UIs) POST resource intent here and it commits to each customer's client repo in
 # Forgejo. It ships from the platform-controller repo (the control plane: API +
 # operator share one schema); its chart lives there too. Image built from
-# Dockerfile.api. Enabled with the per-customer GitOps flow (tenants.enabled).
+# Dockerfile.api. Enabled with the per-customer GitOps flow (clients.enabled).
 platformApi:
   repoURL: https://github.com/adomi-io/adomi-platform-controller.git
   targetRevision: master

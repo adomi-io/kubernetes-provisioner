@@ -1,11 +1,11 @@
 {{- if .Values.client }}
 # The customer's root Application: syncs their committed intent (Client/Workspace/
-# Application/Snapshot, catalog overlay) into adomi-tenant-<client>. The platform
+# Application/Snapshot, catalog overlay) into adomi-client-<client>. The platform
 # controller then reconciles those CRs into running workloads.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: tenant-{{ .Values.client }}
+  name: client-{{ .Values.client }}
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -20,7 +20,7 @@ spec:
       include: {{ .Values.includeGlobs | quote }}
   destination:
     server: {{ .Values.destinationServer | quote }}
-    namespace: {{ .Values.tenantNamespacePrefix }}{{ .Values.client }}
+    namespace: {{ .Values.clientNamespacePrefix }}{{ .Values.client }}
   syncPolicy:
     automated:
       prune: true
