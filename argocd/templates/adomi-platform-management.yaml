@@ -48,8 +48,8 @@ spec:
           listDb: false
           # Install the addon on first boot, and upgrade it every boot so a new
           # image actually applies model/view/security changes to the database.
-          initModules: adomi_platform
-          updateModules: adomi_platform
+          initModules: adomi_platform,adomi_platform_odoo
+          updateModules: adomi_platform,adomi_platform_odoo
         # The odoo chart is a pure 12-factor consumer (capabilities model): the DB
         # connection and every secret are wired explicitly via env. The database is
         # the standalone CloudNativePG management-db; secrets come from OpenBao via
