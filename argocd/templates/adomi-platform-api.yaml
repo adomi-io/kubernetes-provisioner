@@ -28,6 +28,9 @@ spec:
           url: {{ .Values.clients.forgejoApi | quote }}
           org: {{ .Values.clients.forgejoOrg | quote }}
         clientNamespacePrefix: {{ .Values.clients.clientNamespacePrefix | quote }}
+        # Scoped Secrets: the API writes values to OpenBao (its own k8s-auth role).
+        openbao:
+          addr: {{ .Values.openbao.address | quote }}
         # api-token + forgejo-token, delivered by cluster-secrets from OpenBao.
         auth:
           existingSecret: adomi-platform-api

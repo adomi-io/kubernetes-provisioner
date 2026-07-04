@@ -24,6 +24,14 @@ controllerRole: adomi-platform-controller
 controllerServiceAccount: adomi-platform-controller
 controllerNamespace: adomi-system
 
+# adomi-platform-api: kubernetes-auth role restricted to the scoped Variables/
+# Secrets prefix (the API stores portal-sent secret values there; git holds names
+# only). Empty apiRole disables it.
+apiRole: adomi-platform-api
+apiServiceAccount: adomi-platform-api
+apiNamespace: adomi-system
+scopedSecretsPrefix: scoped
+
 # Forgejo service-account token minting (per-customer GitOps). When enabled, the
 # reconciler logs in to Forgejo with the local admin (password at adminPath, also
 # delivered to Forgejo's admin-init job by cluster-secrets), ensures the client org

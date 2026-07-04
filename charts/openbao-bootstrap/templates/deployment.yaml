@@ -42,6 +42,14 @@ spec:
               value: {{ .Values.controllerServiceAccount | quote }}
             - name: CONTROLLER_NS
               value: {{ .Values.controllerNamespace | quote }}
+            - name: API_ROLE
+              value: {{ .Values.apiRole | quote }}
+            - name: API_SA
+              value: {{ .Values.apiServiceAccount | quote }}
+            - name: API_NS
+              value: {{ .Values.apiNamespace | quote }}
+            - name: SCOPED_PREFIX
+              value: {{ .Values.scopedSecretsPrefix | quote }}
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:

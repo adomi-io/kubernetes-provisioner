@@ -92,6 +92,17 @@ data:
             '{bound_service_account_names:$sa, bound_service_account_namespaces:$ns, policies:$pol, ttl:"1h"}')" >/dev/null
       fi
 
+      # adomi-platform-api: scoped Variables/Secrets. The API writes secret VALUES
+      # to scoped/* on behalf of portal users; it can touch NOTHING else in the
+      # mount (unlike the controller's broader per-app credential glob).
+      if [ -n "${API_ROLE:-}" ]; then
+        apol=$(printf 'path "%s/data/%s/*" { capabilities = ["create","read","update","delete"] }\npath "%s/metadata/%s/*" { capabilities = ["read","delete"] }' "$KV_MOUNT" "$SCOPED_PREFIX" "$KV_MOUNT" "$SCOPED_PREFIX")
+        curl -s -H "$TH" -X PUT "$BAO_ADDR/v1/sys/policies/acl/$API_ROLE" -d "$(jq -n --arg p "$apol" '{policy:$p}')" >/dev/null
+        curl -s -H "$TH" -X POST "$BAO_ADDR/v1/auth/$K8S_MOUNT/role/$API_ROLE" \
+          -d "$(jq -n --arg sa "$API_SA" --arg ns "$API_NS" --arg pol "$API_ROLE" \
+            '{bound_service_account_names:$sa, bound_service_account_namespaces:$ns, policies:$pol, ttl:"1h"}')" >/dev/null
+      fi
+
       # seed Authentik's secret_key, only if it isn't already there. (The database
       # password isn't here - CloudNativePG manages Authentik's Postgres creds.)
       code=$(curl -s -H "$TH" -o /dev/null -w '%{http_code}' "$BAO_ADDR/v1/$KV_MOUNT/data/$AUTHENTIK_PATH")
