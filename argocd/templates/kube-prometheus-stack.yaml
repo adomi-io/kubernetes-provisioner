@@ -54,6 +54,12 @@ spec:
               auto_sign_up: true
               headers: "Email:X-authentik-email Name:X-authentik-name"
               sync_ttl: 60
+              # Issue a real login token (grafana_session cookie) on proxy
+              # sign-in. Without it Grafana never sets OR replaces the session
+              # cookie, so a browser holding a stale one loops forever: the
+              # frontend's token-rotate call 401s, reloads, and no reload can
+              # ever fix the cookie.
+              enable_login_token: true
             users:
               # No self-service accounts; identities come from the forward-auth header.
               # New users land in the default org role (Viewer); promote admins manually.
