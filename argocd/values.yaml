@@ -141,6 +141,10 @@ clients:
   targetRevision: main
   # Must match the Odoo addon's adomi_platform.client_namespace_prefix.
   clientNamespacePrefix: adomi-client-
+  # Forgejo usernames with read access to every client infra repo (the org and
+  # repos stay private; access flows through the org's reconciled staff team).
+  staffUsers:
+    - akadmin
 
 authentik:
   address: http://authentik-server.authentik.svc.cluster.local

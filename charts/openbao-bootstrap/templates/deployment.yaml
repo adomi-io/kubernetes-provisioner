@@ -57,6 +57,8 @@ spec:
               value: {{ .Values.forgejoMint.adminUser | quote }}
             - name: FORGEJO_SCM_PATH
               value: {{ .Values.forgejoMint.scmPath | quote }}
+            - name: FORGEJO_STAFF_USERS
+              value: {{ join " " (.Values.forgejoMint.staffUsers | default list) | quote }}
             {{- end }}
           resources:
             requests:

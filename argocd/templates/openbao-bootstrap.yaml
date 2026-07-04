@@ -40,6 +40,7 @@ spec:
           adminPath: {{ .Values.openbao.forgejoAdminSecretPath | quote }}
           adminUser: {{ .Values.openbao.forgejoAdminUser | quote }}
           scmPath: {{ .Values.openbao.forgejoSecretPath | quote }}
+          staffUsers: {{ .Values.clients.staffUsers | default list | toJson }}
   destination:
     server: https://kubernetes.default.svc
     namespace: openbao

@@ -38,3 +38,7 @@ forgejoMint:
   adminPath: forgejo-admin    # OpenBao path with the admin `password`
   adminUser: adomi-admin      # local admin username (owner of the minted token)
   scmPath: forgejo-scm        # OpenBao path to write {username, token} to
+  # Forgejo usernames granted read access to every client repo via the org's
+  # "staff" team (reconciled each loop). Users auto-register on first visit
+  # through the Authentik reverse-proxy auth; add them here after that.
+  staffUsers: []

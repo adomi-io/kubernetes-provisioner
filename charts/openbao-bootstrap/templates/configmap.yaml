@@ -180,6 +180,29 @@ data:
             fi
           fi
         fi
+
+        # Staff access to the (private) client org: ensure a read-only "staff"
+        # team covering every repo and keep membership synced from
+        # FORGEJO_STAFF_USERS. Repos and the org stay private - this team is the
+        # only viewing grant. Runs every loop so new staff logins (auto-registered
+        # by the Authentik reverse-proxy auth) get picked up within a minute.
+        if [ -n "${FORGEJO_STAFF_USERS:-}" ]; then
+          apw=$(curl -s -H "$TH" "$BAO_ADDR/v1/$KV_MOUNT/data/$FORGEJO_ADMIN_PATH" | jq -r '.data.data.password // empty')
+          if [ -n "$apw" ]; then
+            tid=$(curl -s -u "$FORGEJO_ADMIN_USER:$apw" "$FORGEJO_ADDR/api/v1/orgs/$FORGEJO_ORG/teams" | jq -r '.[] | select(.name=="staff") | .id' 2>/dev/null)
+            if [ -z "$tid" ]; then
+              tid=$(curl -s -H 'Content-Type: application/json' -u "$FORGEJO_ADMIN_USER:$apw" \
+                -X POST "$FORGEJO_ADDR/api/v1/orgs/$FORGEJO_ORG/teams" \
+                -d '{"name":"staff","description":"Platform staff: read access to every client repo.","permission":"read","includes_all_repositories":true,"units":["repo.code","repo.pulls","repo.issues","repo.releases","repo.wiki"]}' | jq -r '.id // empty')
+              [ -n "$tid" ] && log "created staff team ($tid) in org $FORGEJO_ORG"
+            fi
+            if [ -n "$tid" ]; then
+              for u in $FORGEJO_STAFF_USERS; do
+                curl -s -o /dev/null -u "$FORGEJO_ADMIN_USER:$apw" -X PUT "$FORGEJO_ADDR/api/v1/teams/$tid/members/$u"
+              done
+            fi
+          fi
+        fi
       fi
 
       log "reconciled OK"
