@@ -103,6 +103,10 @@ spec:
             value: adomi-platform-management
           - name: ADOMI_PORTAL_BASE_URL
             value: https://platform.{{ .Values.domain }}
+          # Public web base of the org holding customer infrastructure repos —
+          # the portal deep-links each customer's repo from here.
+          - name: ADOMI_GIT_PUBLIC_BASE
+            value: https://git.{{ .Values.domain }}/{{ .Values.clients.forgejoOrg }}
 {{- if .Values.clients.enabled }}
           # Git is the source of truth: the portal is a thin client of the platform
           # API, which commits client CRs to Forgejo. The API bearer token comes from
