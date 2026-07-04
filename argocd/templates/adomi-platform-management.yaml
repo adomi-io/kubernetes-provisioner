@@ -39,6 +39,11 @@ spec:
         odoo:
           proxyMode: true
           withoutDemo: true
+          # Multi-worker (Odoo production mode): the gevent worker serves the
+          # websocket/longpolling port 8072 the ingress routes /websocket to —
+          # with workers=0 that port is dead and live status pushes never reach
+          # open browser tabs.
+          workers: 2
           # The portal sits behind OIDC; don't expose the database manager.
           listDb: false
           # Install the addon on first boot, and upgrade it every boot so a new
@@ -120,14 +125,10 @@ spec:
               paths:
                 - path: /
                   pathType: Prefix
+          # Routes /websocket + /longpolling to the gevent port (8072). TLS is not
+          # declared per-ingress: Traefik terminates centrally with the wildcard.
           longpolling:
             enabled: true
-          annotations:
-            cert-manager.io/cluster-issuer: {{ .Values.clusterIssuer | quote }}
-          tls:
-            - hosts:
-                - platform.{{ .Values.domain }}
-              secretName: platform-tls
   destination:
     server: https://kubernetes.default.svc
     namespace: adomi-platform-management
