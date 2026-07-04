@@ -64,6 +64,10 @@ charts:
     repoURL: https://grafana-community.github.io/helm-charts
     chart: loki
     version: 17.4.0
+  alloy:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: alloy
+    version: 1.10.0
   tempo:
     repoURL: https://grafana-community.github.io/helm-charts
     chart: tempo

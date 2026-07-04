@@ -1,0 +1,83 @@
+# Grafana Alloy (log collector) in the monitoring namespace: a daemonset tailing
+# every pod's logs through the kubelet API (no hostPath mounts) and pushing them
+# to Loki with namespace/pod/container/app labels. Loki alone stores nothing —
+# without a collector every "Recent logs" view is empty; this is the missing feed.
+#
+# Wave 7 - alongside Loki.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.charts.alloy.repoURL | quote }}
+    chart: {{ .Values.charts.alloy.chart | quote }}
+    targetRevision: {{ .Values.charts.alloy.version | quote }}
+    helm:
+      valuesObject:
+        controller:
+          type: daemonset
+        alloy:
+          configMap:
+            create: true
+            content: |
+              // Discover every pod, keep the labels the portal queries by
+              // (namespace + pod power the app-scoped log views).
+              discovery.kubernetes "pods" {
+                role = "pod"
+              }
+
+              discovery.relabel "pod_logs" {
+                targets = discovery.kubernetes.pods.targets
+
+                rule {
+                  source_labels = ["__meta_kubernetes_namespace"]
+                  target_label  = "namespace"
+                }
+
+                rule {
+                  source_labels = ["__meta_kubernetes_pod_name"]
+                  target_label  = "pod"
+                }
+
+                rule {
+                  source_labels = ["__meta_kubernetes_pod_container_name"]
+                  target_label  = "container"
+                }
+
+                rule {
+                  source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+                  target_label  = "app"
+                }
+
+                rule {
+                  source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_instance"]
+                  target_label  = "instance"
+                }
+              }
+
+              loki.source.kubernetes "pods" {
+                targets    = discovery.relabel.pod_logs.output
+                forward_to = [loki.write.default.receiver]
+              }
+
+              loki.write "default" {
+                endpoint {
+                  url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+                }
+              }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
