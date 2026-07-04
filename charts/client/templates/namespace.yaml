@@ -1,0 +1,12 @@
+{{- if .Values.client }}
+# The client's intent namespace, created platform-side (this chart syncs in the
+# client-admin project) so the per-client AppProject keeps an EMPTY
+# clusterResourceWhitelist — a client repo can never create cluster-scoped
+# resources, not even its own namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.clientNamespacePrefix }}{{ .Values.client }}
+  labels:
+    platform.adomi.io/client: {{ .Values.client }}
+{{- end }}

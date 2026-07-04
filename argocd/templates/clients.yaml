@@ -24,7 +24,11 @@ spec:
   destinations:
     - server: https://kubernetes.default.svc
       namespace: argocd
-  clusterResourceWhitelist: []
+  # Namespace only: the bootstrap chart creates each client's intent namespace
+  # (platform-side), so the per-client projects stay fully fenced.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
   namespaceResourceWhitelist:
     - group: argoproj.io
       kind: AppProject

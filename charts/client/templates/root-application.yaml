@@ -1,7 +1,9 @@
 {{- if .Values.client }}
-# The customer's root Application: syncs their committed intent (Client/Workspace/
+# The customer's root Application: syncs their committed intent (Client/Environment/
 # Application/Snapshot, catalog overlay) into adomi-client-<client>. The platform
-# controller then reconciles those CRs into running workloads.
+# controller then reconciles those CRs into running workloads. The intent namespace
+# itself comes from this chart (namespace.yaml, client-admin project) — the client
+# project forbids cluster-scoped resources, so no CreateNamespace here.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -25,6 +27,9 @@ spec:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+    retry:
+      limit: -1
+      backoff:
+        duration: 10s
+        maxDuration: 3m
 {{- end }}
