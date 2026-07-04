@@ -68,10 +68,6 @@ charts:
     repoURL: https://grafana-community.github.io/helm-charts
     chart: tempo
     version: 2.2.3
-  uptimeKuma:
-    repoURL: https://helm.irsigler.cloud
-    chart: uptime-kuma
-    version: 4.1.0
   forgejo:
     repoURL: code.forgejo.org/forgejo-helm
     chart: forgejo
@@ -84,22 +80,12 @@ charts:
     repoURL: https://community-charts.github.io/helm-charts
     chart: outline
     version: 0.8.1
-  windmill:
-    repoURL: https://windmill-labs.github.io/windmill-helm-charts
-    chart: windmill
-    version: 4.0.175
+  # The per-app superset chart stays here for the application-catalog (per-client
+  # deployments); the cluster-wide superset app itself is retired.
   superset:
     repoURL: https://github.com/adomi-io/adomi-helm.git
     path: charts/superset
     targetRevision: master
-  vaultwarden:
-    repoURL: https://guerzon.github.io/vaultwarden
-    chart: vaultwarden
-    version: 0.39.0
-  openWebui:
-    repoURL: https://helm.openwebui.com
-    chart: open-webui
-    version: 14.8.0
   litellm:
     repoURL: ghcr.io/berriai
     chart: litellm-helm
@@ -135,7 +121,7 @@ openbao:
   # charts otherwise default to insecure or regenerate on every sync (Outline's
   # SECRET_KEY/UTILS_SECRET, Odoo's master password, Grafana's admin password,
   # Superset's secret key). External Secrets delivers them into each namespace.
-  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password superset-app:secret-key harbor-app:admin-password litellm-app:masterkey management-app:admin-password adomi-ingest:token adomi-platform-api:api-token forgejo-admin:password"
+  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password harbor-app:admin-password litellm-app:masterkey management-app:admin-password adomi-ingest:token adomi-platform-api:api-token forgejo-admin:password"
   # Auto-unseal (kms mode): base64 HCL seal stanza + a service-account annotation.
   sealConfig: ""
   serviceAccountAnnotationKey: ""
