@@ -28,6 +28,16 @@ spec:
             existingSecret: grafana-admin
             userKey: admin-user
             passwordKey: admin-password
+          # Persist Grafana's database (sessions, auto-created proxy users,
+          # preferences). On emptyDir every pod restart wiped it, so browsers
+          # holding a session cookie hit "user token not found" on the rotate
+          # call and reload-looped until cookies were cleared.
+          persistence:
+            enabled: true
+            size: 2Gi
+          # A single replica on an RWO volume: replace the pod, don't roll it.
+          deploymentStrategy:
+            type: Recreate
           grafana.ini:
             server:
               root_url: https://grafana.{{ .Values.domain }}
