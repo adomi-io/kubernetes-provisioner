@@ -5,7 +5,6 @@ metadata:
   name: odoo
 spec:
   displayName: Odoo
-  adapter: odoo
   chart:
     repoURL: {{ .Values.charts.odoo.repoURL | quote }}
     path: {{ .Values.charts.odoo.path | quote }}
@@ -27,7 +26,6 @@ metadata:
   name: mailpit
 spec:
   displayName: Mailpit (mail trap)
-  adapter: mailpit
   chart:
     repoURL: {{ .Values.charts.mailpit.repoURL | quote }}
     path: {{ .Values.charts.mailpit.path | quote }}
@@ -47,7 +45,6 @@ metadata:
   name: superset
 spec:
   displayName: Apache Superset
-  adapter: superset
   chart:
     repoURL: {{ .Values.charts.superset.repoURL | quote }}
     path: {{ .Values.charts.superset.path | quote }}
@@ -70,7 +67,6 @@ metadata:
   name: vaultwarden
 spec:
   displayName: Vaultwarden
-  adapter: generic
   chart:
     repoURL: {{ .Values.charts.vaultwarden.repoURL | quote }}
     path: {{ .Values.charts.vaultwarden.path | quote }}
@@ -86,7 +82,6 @@ metadata:
   name: open-webui
 spec:
   displayName: Open WebUI
-  adapter: generic
   chart:
     repoURL: {{ .Values.charts.openWebui.repoURL | quote }}
     path: {{ .Values.charts.openWebui.path | quote }}
@@ -107,7 +102,6 @@ metadata:
   name: uptime-kuma
 spec:
   displayName: Uptime Kuma
-  adapter: generic
   chart:
     repoURL: {{ .Values.charts.uptimeKuma.repoURL | quote }}
     path: {{ .Values.charts.uptimeKuma.path | quote }}
@@ -125,7 +119,6 @@ metadata:
   name: windmill
 spec:
   displayName: Windmill
-  adapter: generic
   chart:
     repoURL: {{ .Values.charts.windmill.repoURL | quote }}
     path: {{ .Values.charts.windmill.path | quote }}
