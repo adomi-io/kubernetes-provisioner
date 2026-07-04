@@ -47,6 +47,10 @@ spec:
   goTemplateOptions: ["missingkey=error"]
   generators:
     - scmProvider:
+        # Re-list the org's repos every 2 minutes (default is 30!) so a freshly
+        # created customer onboards while they're still looking at the screen.
+        # Forgejo is in-cluster; the listing is cheap.
+        requeueAfterSeconds: 120
         gitea:
           owner: {{ .Values.clients.forgejoOrg | quote }}
           api: {{ .Values.clients.forgejoApi | quote }}
