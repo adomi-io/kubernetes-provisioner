@@ -5,6 +5,17 @@ metadata:
   name: odoo
 spec:
   displayName: Odoo
+  catalog:
+    description: All-in-one business software — CRM, accounting, inventory, e-commerce and dozens of integrated apps.
+    about: |-
+      Odoo is a suite of open-source business apps that cover every company need:
+      CRM, invoicing, accounting, manufacturing, warehouse, project management and
+      more. Each app is full-featured on its own and they integrate seamlessly, so
+      you can start with one and grow into a complete ERP.
+    icon: fa-cubes
+    category: ERP
+    vendor: Odoo S.A.
+    websiteUrl: https://www.odoo.com
   chart:
     repoURL: {{ .Values.charts.odoo.repoURL | quote }}
     path: {{ .Values.charts.odoo.path | quote }}
@@ -26,6 +37,16 @@ metadata:
   name: mailpit
 spec:
   displayName: Mailpit (mail trap)
+  catalog:
+    description: Email testing for development — outgoing mail lands in a friendly web inbox instead of real mailboxes.
+    about: |-
+      Mailpit is an email and SMTP testing tool. Point an environment's outgoing
+      mail at it and every message is captured into a searchable web inbox — no
+      risk of test emails reaching real customers.
+    icon: fa-envelope-o
+    category: Developer tools
+    vendor: Mailpit
+    websiteUrl: https://mailpit.axllent.org
   chart:
     repoURL: {{ .Values.charts.mailpit.repoURL | quote }}
     path: {{ .Values.charts.mailpit.path | quote }}
@@ -45,6 +66,16 @@ metadata:
   name: superset
 spec:
   displayName: Apache Superset
+  catalog:
+    description: Modern data exploration and visualization — dashboards, charts and a SQL IDE on top of your databases.
+    about: |-
+      Apache Superset is a business-intelligence platform that connects to your
+      databases and turns them into interactive dashboards. It ships a no-code
+      chart builder for business users and a powerful SQL IDE for analysts.
+    icon: fa-bar-chart
+    category: Analytics
+    vendor: Apache Software Foundation
+    websiteUrl: https://superset.apache.org
   chart:
     repoURL: {{ .Values.charts.superset.repoURL | quote }}
     path: {{ .Values.charts.superset.path | quote }}
@@ -67,6 +98,16 @@ metadata:
   name: vaultwarden
 spec:
   displayName: Vaultwarden
+  catalog:
+    description: Self-hosted password manager for teams, compatible with the Bitwarden apps and browser extensions.
+    about: |-
+      Vaultwarden is a lightweight server implementation of the Bitwarden API.
+      Your team keeps using the official Bitwarden clients — apps, extensions,
+      CLI — while every secret stays on your own infrastructure.
+    icon: fa-shield
+    category: Security
+    vendor: Vaultwarden community
+    websiteUrl: https://github.com/dani-garcia/vaultwarden
   chart:
     repoURL: {{ .Values.charts.vaultwarden.repoURL | quote }}
     path: {{ .Values.charts.vaultwarden.path | quote }}
@@ -82,6 +123,16 @@ metadata:
   name: open-webui
 spec:
   displayName: Open WebUI
+  catalog:
+    description: Chat interface for AI models — bring your own providers, with user workspaces and access controls.
+    about: |-
+      Open WebUI is a self-hosted AI chat platform. Connect it to the model
+      providers you already use, organize prompts and knowledge into workspaces,
+      and give your whole team a private ChatGPT-style experience.
+    icon: fa-comments-o
+    category: AI
+    vendor: Open WebUI
+    websiteUrl: https://openwebui.com
   chart:
     repoURL: {{ .Values.charts.openWebui.repoURL | quote }}
     path: {{ .Values.charts.openWebui.path | quote }}
@@ -102,6 +153,16 @@ metadata:
   name: uptime-kuma
 spec:
   displayName: Uptime Kuma
+  catalog:
+    description: Uptime monitoring with status pages and alerting for your sites and services.
+    about: |-
+      Uptime Kuma watches your websites, APIs and services and alerts you the
+      moment something goes down — with public status pages you can share with
+      your own customers.
+    icon: fa-heartbeat
+    category: Monitoring
+    vendor: Uptime Kuma
+    websiteUrl: https://uptime.kuma.pet
   chart:
     repoURL: {{ .Values.charts.uptimeKuma.repoURL | quote }}
     path: {{ .Values.charts.uptimeKuma.path | quote }}
@@ -119,6 +180,16 @@ metadata:
   name: windmill
 spec:
   displayName: Windmill
+  catalog:
+    description: Turn scripts into workflows, internal apps and scheduled jobs — an open-source developer platform.
+    about: |-
+      Windmill turns scripts (Python, TypeScript, Go, Bash, SQL) into shareable
+      workflows, UIs and scheduled jobs. It's an open-source alternative to
+      Retool and Airplane for building internal tools fast.
+    icon: fa-cogs
+    category: Automation
+    vendor: Windmill Labs
+    websiteUrl: https://www.windmill.dev
   chart:
     repoURL: {{ .Values.charts.windmill.repoURL | quote }}
     path: {{ .Values.charts.windmill.path | quote }}

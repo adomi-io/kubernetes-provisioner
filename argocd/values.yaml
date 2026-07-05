@@ -125,7 +125,11 @@ openbao:
   # charts otherwise default to insecure or regenerate on every sync (Outline's
   # SECRET_KEY/UTILS_SECRET, Odoo's master password, Grafana's admin password,
   # Superset's secret key). External Secrets delivers them into each namespace.
-  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password harbor-app:admin-password litellm-app:masterkey management-app:admin-password adomi-ingest:token adomi-platform-api:api-token forgejo-admin:password"
+  appSecrets: "outline-app:secret-key,utils-secret grafana-admin:admin-password harbor-app:admin-password litellm-app:masterkey management-app:admin-password adomi-ingest:token adomi-platform-api:api-token forgejo-admin:password forgejo-webhook:secret"
+  # OpenBao path holding the shared HMAC secret Forgejo signs push webhooks with
+  # (seeded once via appSecrets above). Delivered by app-databases to Argo CD
+  # (webhook.gogs.secret dereferences it) and to the portal (payload verification).
+  forgejoWebhookSecretPath: forgejo-webhook
   # Auto-unseal (kms mode): base64 HCL seal stanza + a service-account annotation.
   sealConfig: ""
   serviceAccountAnnotationKey: ""
@@ -149,6 +153,13 @@ clients:
   # repos stay private; access flows through the org's reconciled staff team).
   staffUsers:
     - akadmin
+  # Push fan-out: org-level webhooks openbao-bootstrap keeps on the client org.
+  # Argo CD re-fetches the pushed repo immediately (instead of the ~3 min poll);
+  # the portal re-syncs the pushed client's state. Both verify the shared HMAC
+  # secret at openbao.forgejoWebhookSecretPath.
+  webhooks:
+    argocd: http://argo-cd-argocd-server.argocd.svc/api/webhook
+    portal: http://adomi-platform-management.adomi-platform-management.svc:8069/adomi_platform/webhook/forgejo
 
 authentik:
   address: http://authentik-server.authentik.svc.cluster.local

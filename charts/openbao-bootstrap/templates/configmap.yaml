@@ -214,6 +214,31 @@ data:
             fi
           fi
         fi
+
+        # Instant GitOps fan-out: keep org-level webhooks on the client org so a
+        # push to any client repo hits Argo CD (repo re-fetch, type gogs - Argo CD
+        # validates Forgejo's X-Gogs-Signature) and the portal (state re-sync)
+        # the moment it lands instead of on the next poll. Reconciled every loop,
+        # keyed by target URL; the shared HMAC secret lives at
+        # secret/FORGEJO_WEBHOOK_PATH (key `secret`, seeded once via APP_SECRETS).
+        if [ -n "${FORGEJO_WEBHOOKS:-}" ]; then
+          apw=$(curl -s -H "$TH" "$BAO_ADDR/v1/$KV_MOUNT/data/$FORGEJO_ADMIN_PATH" | jq -r '.data.data.password // empty')
+          whs=$(curl -s -H "$TH" "$BAO_ADDR/v1/$KV_MOUNT/data/$FORGEJO_WEBHOOK_PATH" | jq -r '.data.data.secret // empty')
+          if [ -n "$apw" ] && [ -n "$whs" ]; then
+            hooks=$(curl -s -u "$FORGEJO_ADMIN_USER:$apw" "$FORGEJO_ADDR/api/v1/orgs/$FORGEJO_ORG/hooks")
+            for w in $FORGEJO_WEBHOOKS; do
+              wtype=${w%%|*}; wurl=${w#*|}
+              have=$(echo "$hooks" | jq -r --arg u "$wurl" '[.[]? | select(.config.url == $u)] | length' 2>/dev/null)
+              if [ "${have:-0}" = "0" ]; then
+                curl -s -o /dev/null -H 'Content-Type: application/json' -u "$FORGEJO_ADMIN_USER:$apw" \
+                  -X POST "$FORGEJO_ADDR/api/v1/orgs/$FORGEJO_ORG/hooks" \
+                  -d "$(jq -n --arg t "$wtype" --arg u "$wurl" --arg s "$whs" \
+                    '{type:$t, active:true, events:["push"], config:{url:$u, content_type:"json", secret:$s}}')"
+                log "created $wtype org webhook -> $wurl"
+              fi
+            done
+          fi
+        fi
       fi
 
       log "reconciled OK"

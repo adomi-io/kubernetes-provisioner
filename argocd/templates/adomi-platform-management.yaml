@@ -82,6 +82,16 @@ spec:
               secretKeyRef:
                 name: adomi-ingest
                 key: token
+          # HMAC secret Forgejo signs push webhooks with (org-level hook kept by
+          # openbao-bootstrap): a push to a client repo re-syncs that client
+          # immediately instead of on the hourly fallback cron. Optional so the
+          # pod still starts before the secret is seeded/delivered.
+          - name: ADOMI_FORGEJO_WEBHOOK_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: forgejo-webhook
+                key: secret
+                optional: true
           # OIDC sign-in against Authentik. The management-sso Secret is published by
           # the controller from the SSOApplication; optional so the pod still starts
           # if SSO hasn't reconciled yet (the addon skips seeding until creds exist).

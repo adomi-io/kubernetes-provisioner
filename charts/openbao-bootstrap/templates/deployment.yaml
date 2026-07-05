@@ -67,6 +67,11 @@ spec:
               value: {{ .Values.forgejoMint.scmPath | quote }}
             - name: FORGEJO_STAFF_USERS
               value: {{ join " " (.Values.forgejoMint.staffUsers | default list) | quote }}
+            - name: FORGEJO_WEBHOOK_PATH
+              value: {{ .Values.forgejoMint.webhookPath | quote }}
+            # "type|url" pairs; the reconciler ensures one org webhook per URL.
+            - name: FORGEJO_WEBHOOKS
+              value: "{{- range $i, $w := .Values.forgejoMint.webhooks }}{{ if $i }} {{ end }}{{ $w.type }}|{{ $w.url }}{{- end }}"
             {{- end }}
           resources:
             requests:

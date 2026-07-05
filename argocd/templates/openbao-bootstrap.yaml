@@ -41,6 +41,14 @@ spec:
           adminUser: {{ .Values.openbao.forgejoAdminUser | quote }}
           scmPath: {{ .Values.openbao.forgejoSecretPath | quote }}
           staffUsers: {{ .Values.clients.staffUsers | default list | toJson }}
+          # Org-level push webhooks (instant Argo CD refresh + portal re-sync),
+          # signed with the shared secret at forgejoWebhookSecretPath.
+          webhookPath: {{ .Values.openbao.forgejoWebhookSecretPath | quote }}
+          webhooks:
+            - type: gogs
+              url: {{ .Values.clients.webhooks.argocd | quote }}
+            - type: gitea
+              url: {{ .Values.clients.webhooks.portal | quote }}
   destination:
     server: https://kubernetes.default.svc
     namespace: openbao

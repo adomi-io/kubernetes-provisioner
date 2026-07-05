@@ -10,6 +10,14 @@ configs:
   params:
     # Traefik already handles HTTPS, so this keeps Argo CD from redirecting in a loop.
     server.insecure: true
+  secret:
+    # Forgejo push webhooks (gogs-compatible signature) -> instant repo re-fetch
+    # instead of the ~3 min poll. The $-reference dereferences the forgejo-webhook
+    # Secret app-databases delivers into this namespace (labelled part-of: argocd);
+    # the actual value is seeded in OpenBao by openbao-bootstrap, so no secret
+    # material lives in git. openbao-bootstrap keeps the matching org-level
+    # webhook on the Forgejo client org.
+    gogsSecret: $forgejo-webhook:secret
   cm:
     # Public URL - Argo CD builds the OIDC callback from this.
     url: https://argocd.{{ .Values.domain }}

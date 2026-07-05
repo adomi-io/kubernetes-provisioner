@@ -50,3 +50,10 @@ forgejoMint:
   # "staff" team (reconciled each loop). Users auto-register on first visit
   # through the Authentik reverse-proxy auth; add them here after that.
   staffUsers: []
+  # Org-level push webhooks kept on the client org (reconciled each loop, keyed
+  # by target URL) so pushes fan out instantly: Argo CD re-fetches the repo,
+  # the portal re-syncs. The shared HMAC secret is read from webhookPath (key
+  # `secret`; seed it via appSecrets) - receivers verify payloads with the
+  # same value.
+  webhookPath: forgejo-webhook
+  webhooks: []   # e.g. [{type: gogs, url: "http://argo-cd-argocd-server.argocd.svc/api/webhook"}]

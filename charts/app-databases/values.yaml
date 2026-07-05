@@ -142,6 +142,24 @@ externalSecrets:
     openbaoPath: adomi-ingest
     data:
       - { secretKey: token, property: token }
+  # Shared HMAC secret Forgejo signs push webhooks with (seeded once by
+  # openbao-bootstrap at secret/forgejo-webhook, which also keeps the org-level
+  # webhooks in place). Delivered twice: to the portal (payload verification via
+  # ADOMI_FORGEJO_WEBHOOK_SECRET) and to Argo CD, labelled part-of: argocd so
+  # argocd-secret's `webhook.gogs.secret: $forgejo-webhook:secret` can
+  # dereference it (see values/argo-cd.yaml.gotmpl).
+  - name: forgejo-webhook
+    namespace: adomi-platform-management
+    openbaoPath: forgejo-webhook
+    data:
+      - { secretKey: secret, property: secret }
+  - name: forgejo-webhook
+    namespace: argocd
+    openbaoPath: forgejo-webhook
+    labels:
+      app.kubernetes.io/part-of: argocd
+    data:
+      - { secretKey: secret, property: secret }
   # Outline's SECRET_KEY / UTILS_SECRET, generated once by openbao-bootstrap.
   - name: outline-secret
     namespace: outline
