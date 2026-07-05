@@ -31,6 +31,11 @@ spec:
         # Scoped Secrets: the API writes values to OpenBao (its own k8s-auth role).
         openbao:
           addr: {{ .Values.openbao.address | quote }}
+        # Identity: per-app access management against Authentik; the admin token
+        # is read from OpenBao (the bootstrap grants the API role read on it).
+        authentik:
+          addr: {{ .Values.authentik.address | quote }}
+          secretPath: {{ .Values.openbao.authentikSecretPath | quote }}
         # api-token + forgejo-token, delivered by cluster-secrets from OpenBao.
         auth:
           existingSecret: adomi-platform-api

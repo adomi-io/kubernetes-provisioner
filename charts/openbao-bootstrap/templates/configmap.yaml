@@ -92,11 +92,11 @@ data:
             '{bound_service_account_names:$sa, bound_service_account_namespaces:$ns, policies:$pol, ttl:"1h"}')" >/dev/null
       fi
 
-      # adomi-platform-api: scoped Variables/Secrets. The API writes secret VALUES
-      # to scoped/* on behalf of portal users; it can touch NOTHING else in the
-      # mount (unlike the controller's broader per-app credential glob).
+      # adomi-platform-api: scoped Variables/Secrets, plus a read-only grant on
+      # the Authentik admin token so the API can manage per-app access (users /
+      # group membership). Everything else in the mount stays out of reach.
       if [ -n "${API_ROLE:-}" ]; then
-        apol=$(printf 'path "%s/data/%s/*" { capabilities = ["create","read","update","delete"] }\npath "%s/metadata/%s/*" { capabilities = ["read","delete"] }' "$KV_MOUNT" "$SCOPED_PREFIX" "$KV_MOUNT" "$SCOPED_PREFIX")
+        apol=$(printf 'path "%s/data/%s/*" { capabilities = ["create","read","update","delete"] }\npath "%s/metadata/%s/*" { capabilities = ["read","delete"] }\npath "%s/data/%s" { capabilities = ["read"] }' "$KV_MOUNT" "$SCOPED_PREFIX" "$KV_MOUNT" "$SCOPED_PREFIX" "$KV_MOUNT" "$AUTHENTIK_PATH")
         curl -s -H "$TH" -X PUT "$BAO_ADDR/v1/sys/policies/acl/$API_ROLE" -d "$(jq -n --arg p "$apol" '{policy:$p}')" >/dev/null
         curl -s -H "$TH" -X POST "$BAO_ADDR/v1/auth/$K8S_MOUNT/role/$API_ROLE" \
           -d "$(jq -n --arg sa "$API_SA" --arg ns "$API_NS" --arg pol "$API_ROLE" \
