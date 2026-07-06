@@ -17,6 +17,7 @@ rules:
       - applicationtypes
       - gitrepositories
       - snapshots
+      - databaseservers
       - databases
       - domains
     verbs: [get, list, watch, create, update, patch, delete]
