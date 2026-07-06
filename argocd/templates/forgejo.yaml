@@ -60,6 +60,12 @@ spec:
               # which has no upper/special chars - turn off complexity so the chart's
               # admin-init accepts it. The account is in-cluster only (forward-auth).
               PASSWORD_COMPLEXITY: "off"
+            # Forgejo refuses webhook deliveries to non-public addresses by
+            # default. Allow EXACTLY the two in-cluster receivers of the org
+            # push hooks (Argo CD repo refresh + the portal re-sync) — not a
+            # wildcard, so repo admins can't aim webhooks at other services.
+            webhook:
+              ALLOWED_HOST_LIST: "argo-cd-argocd-server.argocd.svc,adomi-platform-management.adomi-platform-management.svc"
           # DB password injected from the CNPG-managed Secret (no value in git).
           additionalConfigFromEnvs:
             - name: FORGEJO__DATABASE__PASSWD
