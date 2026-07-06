@@ -176,7 +176,7 @@ platformController:
     # imagePullPolicy Always, so redeploys silently kept old code — immutable
     # tags are the only reliable rollout on this cluster (and true GitOps:
     # bump this to ship a new controller).
-    tag: "sha-84d90984bd4f04e180007958b110594ee105ebf1"
+    tag: "sha-8c367f97f272eac1bedcb7e68a38cc0e1f66123d"
 # The front-door API (adomi_platform_api): end users (via Odoo / the CLI / partner
 # UIs) POST resource intent here and it commits to each customer's client repo in
 # Forgejo. It ships from the platform-controller repo (the control plane: API +
