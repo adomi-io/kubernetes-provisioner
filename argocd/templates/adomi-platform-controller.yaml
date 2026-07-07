@@ -54,6 +54,11 @@ spec:
         # so the controller pushes status changes to it live (token from OpenBao).
         platform:
           baseDomain: {{ .Values.domain | quote }}
+          build:
+            harbor:
+              # Builds push over the cluster's own service DNS; the public
+              # under the public host — same registry, same content.
+              pushEndpoint: http://harbor-core.harbor.svc
           odooNotify:
             url: http://adomi-platform-management.adomi-platform-management.svc.cluster.local:8069
   destination:
