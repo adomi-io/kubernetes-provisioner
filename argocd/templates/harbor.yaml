@@ -42,6 +42,22 @@ spec:
               traefik.ingress.kubernetes.io/router.middlewares: "harbor-ak-forward-auth@kubernetescrd"
             hosts:
               core: harbor.{{ .Values.domain }}
+        core:
+          # Harbor builds the registry token realm from CORE_URL when the
+          # request Host matches it exactly — any other host gets an https://
+          # echo of itself back, which has no in-cluster listener. The chart
+          # defaults CORE_URL to the same-namespace short name
+          # (http://harbor-core:80), unresolvable from other namespaces, so
+          # in-cluster pushes (build workflows in the argo namespace) could
+          # never fetch a push token. Pin both URLs to the namespace-qualified
+          # FQDN; explicit env wins over the chart's envFrom configmap. Must
+          # stay in lockstep with the platform controller's
+          # platform.build.harbor.pushEndpoint.
+          extraEnvVars:
+            - name: CORE_URL
+              value: http://harbor-core.harbor.svc:80
+            - name: TOKEN_SERVICE_URL
+              value: http://harbor-core.harbor.svc:80/service/token
         database:
           type: external
           external:

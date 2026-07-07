@@ -57,8 +57,13 @@ spec:
           build:
             harbor:
               # Builds push over the cluster's own service DNS; the public
-              # under the public host — same registry, same content.
-              pushEndpoint: http://harbor-core.harbor.svc
+              # harbor.<domain> host is proxied by Cloudflare, which caps
+              # upload bodies and 413s image layers. Images still deploy
+              # under the public host — same registry, same content. The :80
+              # is load-bearing: Harbor only issues a reachable plain-HTTP
+              # token realm when the request Host matches its CORE_URL
+              # exactly (pinned to this FQDN in harbor.yaml).
+              pushEndpoint: http://harbor-core.harbor.svc:80
           odooNotify:
             url: http://adomi-platform-management.adomi-platform-management.svc.cluster.local:8069
   destination:
