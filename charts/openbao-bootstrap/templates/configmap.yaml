@@ -92,11 +92,12 @@ data:
             '{bound_service_account_names:$sa, bound_service_account_namespaces:$ns, policies:$pol, ttl:"1h"}')" >/dev/null
       fi
 
-      # adomi-platform-api: scoped Variables/Secrets, plus a read-only grant on
-      # the Authentik admin token so the API can manage per-app access (users /
-      # group membership). Everything else in the mount stays out of reach.
+      # adomi-platform-api: scoped Variables/Secrets, plus read-only grants on
+      # the Authentik admin token (per-app access: users / group membership)
+      # and the Harbor admin credential (the portal's per-client Images
+      # listing). Everything else in the mount stays out of reach.
       if [ -n "${API_ROLE:-}" ]; then
-        apol=$(printf 'path "%s/data/%s/*" { capabilities = ["create","read","update","delete"] }\npath "%s/metadata/%s/*" { capabilities = ["read","delete"] }\npath "%s/data/%s" { capabilities = ["read"] }' "$KV_MOUNT" "$SCOPED_PREFIX" "$KV_MOUNT" "$SCOPED_PREFIX" "$KV_MOUNT" "$AUTHENTIK_PATH")
+        apol=$(printf 'path "%s/data/%s/*" { capabilities = ["create","read","update","delete"] }\npath "%s/metadata/%s/*" { capabilities = ["read","delete"] }\npath "%s/data/%s" { capabilities = ["read"] }\npath "%s/data/%s" { capabilities = ["read"] }' "$KV_MOUNT" "$SCOPED_PREFIX" "$KV_MOUNT" "$SCOPED_PREFIX" "$KV_MOUNT" "$AUTHENTIK_PATH" "$KV_MOUNT" "$HARBOR_PATH")
         curl -s -H "$TH" -X PUT "$BAO_ADDR/v1/sys/policies/acl/$API_ROLE" -d "$(jq -n --arg p "$apol" '{policy:$p}')" >/dev/null
         curl -s -H "$TH" -X POST "$BAO_ADDR/v1/auth/$K8S_MOUNT/role/$API_ROLE" \
           -d "$(jq -n --arg sa "$API_SA" --arg ns "$API_NS" --arg pol "$API_ROLE" \

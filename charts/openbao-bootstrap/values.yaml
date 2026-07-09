@@ -26,11 +26,16 @@ controllerNamespace: adomi-system
 
 # adomi-platform-api: kubernetes-auth role restricted to the scoped Variables/
 # Secrets prefix (the API stores portal-sent secret values there; git holds names
-# only). Empty apiRole disables it.
+# only), plus read-only grants on the Authentik admin token (per-app access
+# management) and the Harbor admin credential (the portal's Images listing).
+# Empty apiRole disables it.
 apiRole: adomi-platform-api
 apiServiceAccount: adomi-platform-api
 apiNamespace: adomi-system
 scopedSecretsPrefix: scoped
+# Harbor admin credential path (an appSecrets entry above; must match the
+# platform controller/API's harbor secretPath).
+harborSecretPath: harbor-app
 
 # Forgejo service-account token minting (per-customer GitOps). When enabled, the
 # reconciler logs in to Forgejo with the local admin (password at adminPath, also

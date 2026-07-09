@@ -50,6 +50,8 @@ spec:
               value: {{ .Values.apiNamespace | quote }}
             - name: SCOPED_PREFIX
               value: {{ .Values.scopedSecretsPrefix | quote }}
+            - name: HARBOR_PATH
+              value: {{ .Values.harborSecretPath | quote }}
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:

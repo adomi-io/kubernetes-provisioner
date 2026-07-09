@@ -36,6 +36,10 @@ spec:
         authentik:
           addr: {{ .Values.authentik.address | quote }}
           secretPath: {{ .Values.openbao.authentikSecretPath | quote }}
+        # Images: list a client's built images from Harbor (shown under the
+        # public host; read in-cluster, admin password from OpenBao).
+        harbor:
+          host: harbor.{{ .Values.domain }}
         # api-token + forgejo-token, delivered by cluster-secrets from OpenBao.
         auth:
           existingSecret: adomi-platform-api
