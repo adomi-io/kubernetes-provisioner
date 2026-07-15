@@ -84,29 +84,33 @@ spec:
                 key: token
           # HMAC secret Forgejo signs push webhooks with (org-level hook kept by
           # openbao-bootstrap): a push to a client repo re-syncs that client
-          # immediately instead of on the hourly fallback cron. Optional so the
-          # pod still starts before the secret is seeded/delivered.
+          # immediately instead of on the hourly fallback cron. Required: env is
+          # resolved once at container start, so an optional-but-absent secret means
+          # broken webhook verification until someone restarts the pod. Kubelet holds
+          # the container (CreateContainerConfigError) and retries until the
+          # app-databases ExternalSecret delivers it.
           - name: ADOMI_FORGEJO_WEBHOOK_SECRET
             valueFrom:
               secretKeyRef:
                 name: forgejo-webhook
                 key: secret
-                optional: true
           # OIDC sign-in against Authentik. The management-sso Secret is published by
-          # the controller from the SSOApplication; optional so the pod still starts
-          # if SSO hasn't reconciled yet (the addon skips seeding until creds exist).
+          # the controller from the SSOApplication above. Required: the addon seeds
+          # the auth.oauth.provider from these env vars during module init/update, so
+          # a pod that boots without them comes up with no Authentik login and stays
+          # that way until restarted. Kubelet retries container creation until the
+          # controller has reconciled the SSOApplication and the secret exists — the
+          # first install converges on its own instead of racing the controller.
           - name: ADOMI_OIDC_CLIENT_ID
             valueFrom:
               secretKeyRef:
                 name: management-sso
                 key: client-id
-                optional: true
           - name: ADOMI_OIDC_CLIENT_SECRET
             valueFrom:
               secretKeyRef:
                 name: management-sso
                 key: client-secret
-                optional: true
           - name: ADOMI_OIDC_AUTH_HOST
             value: auth.{{ .Values.domain }}
           - name: ADOMI_OIDC_APP_SLUG
