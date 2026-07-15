@@ -179,6 +179,17 @@ PY
 # never in git or OpenBao. Read only once, so re-runs don't change an existing install.
 bootstrap_authentik_admin() {
   [ -n "${AUTHENTIK_ADMIN_PASSWORD:-}" ] || return 0
+  # On a brand-new cluster (k3s installed moments ago) the API server may not be
+  # accepting requests yet. Authentik reads the bootstrap Secret on FIRST BOOT
+  # ONLY, so losing this write means akadmin comes up with no password and nothing
+  # ever retries - wait for the API instead of racing it.
+  tries=0
+  until kubectl get --raw=/readyz >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    [ "$tries" -ge 30 ] && die "Kubernetes API not reachable after 60s; cannot create the authentik-bootstrap Secret (the akadmin password would silently never apply). Check kubectl connectivity and re-run."
+    [ "$tries" -eq 1 ] && say "waiting for the Kubernetes API before creating the authentik-bootstrap Secret..."
+    sleep 2
+  done
   kubectl create namespace authentik >/dev/null 2>&1 || true
   hash="$(django_password_hash "$AUTHENTIK_ADMIN_PASSWORD" 2>/dev/null || true)"
   if [ -n "$hash" ]; then
@@ -190,10 +201,13 @@ bootstrap_authentik_admin() {
     method="plaintext password"
   fi
   [ -n "${AUTHENTIK_ADMIN_EMAIL:-}" ] && set -- "$@" --from-literal=email="$AUTHENTIK_ADMIN_EMAIL"
-  if kubectl -n authentik create secret generic authentik-bootstrap "$@" --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1; then
+  # Keep stdout quiet but let kubectl's stderr through: a failure here must be
+  # loud and abort the install - the user explicitly asked for this admin
+  # password, and Authentik will never pick it up after its first boot.
+  if kubectl -n authentik create secret generic authentik-bootstrap "$@" --dry-run=client -o yaml | kubectl apply -f - >/dev/null; then
     say "provisioned Authentik admin (akadmin) via $method (one-time secret authentik-bootstrap)"
   else
-    warn "couldn't create the authentik-bootstrap Secret; set the password later with: kubectl -n authentik exec -it deploy/authentik-server -- ak changepassword akadmin"
+    die "couldn't create the authentik-bootstrap Secret (see error above). Fix and re-run, or set the password after install with: kubectl -n authentik exec -it deploy/authentik-server -- ak changepassword akadmin"
   fi
 }
 
