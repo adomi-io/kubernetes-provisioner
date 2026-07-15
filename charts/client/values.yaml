@@ -18,9 +18,11 @@ clientNamespacePrefix: adomi-client-
 
 # Only these directories of the client repo are synced (keeps READMEs/CI out).
 # Must match the resource plurals the platform API commits (adomi_platform_schema
-# BY_PLURAL): clients, domains, databases, environments, applications, gitrepositories,
-# snapshots, plus the client catalog overlay.
-includeGlobs: "{clients/*.yaml,domains/*.yaml,databases/*.yaml,environments/*.yaml,applications/*.yaml,gitrepositories/*.yaml,snapshots/*.yaml,catalog/*.yaml}"
+# BY_PLURAL): clients, domains, databaseservers, databases, environments, applications,
+# gitrepositories, snapshots, plus the client catalog overlay. A plural missing here
+# means the API commits the manifest but Argo CD never applies it — the record sits
+# at "waiting for the platform to apply it" forever.
+includeGlobs: "{clients/*.yaml,domains/*.yaml,databaseservers/*.yaml,databases/*.yaml,environments/*.yaml,applications/*.yaml,gitrepositories/*.yaml,snapshots/*.yaml,catalog/*.yaml}"
 
 # The AppProject the per-customer root Application is placed in is named
 # client-<client>. It permits only the platform CRD kinds, scoped to the customer's
